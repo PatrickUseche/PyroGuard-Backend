@@ -141,6 +141,11 @@ MAILERS = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "https://pyro-guard-frontend-im72wci6g-uni-340e.vercel.app",
     "http://localhost:4200",
+    "https://pyro-guard-frontend.vercel.app",  # URL corta de producción en Vercel
+    "https://pyro-guard-frontend-im72wci6g-uni-340e.vercel.app",  # URL con subdominio
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/.*\.vercel\.app$",
 ]
