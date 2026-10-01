@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 """
 Django settings for config project.
 
@@ -19,13 +21,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
+load_dotenv()
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-tdp$)4jrz(@x4rxns=&j&bj_grdxz9p(nnztuhq*pyc3p81xbq'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'tu-clave-secreta-por-defecto') ## Pendiente por actualizar con una clave secreta real en producción.
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*'] # Permitir todos los host para desarrollo, pero en producción se debe restringir a los dominios permitidos.
 
 
 # Application definition
