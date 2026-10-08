@@ -3,7 +3,7 @@ import time
 import random
 from datetime import datetime, timezone
 
-API_URL = "http://localhost:8000/api/readings/"
+API_URL = "https://pyroguard-backend.onrender.com/api/readings/"
 NODE_ID = "NODE-001"
 INTERVAL_SECONDS = 5
 
