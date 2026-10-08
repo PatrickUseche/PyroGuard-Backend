@@ -15,9 +15,9 @@ class SensorReading(models.Model):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='readings')
     
     # Variables de los sensores acordadas en el contrato
-    temperature = models.FloatField
-    humidity = models.FloatField
-    smoke = models.FloatField
+    temperature = models.FloatField()
+    humidity = models.FloatField()
+    smoke = models.FloatField()
     flame = models.BooleanField(default = False)
     timestamp = models.DateTimeField(default=timezone.now)
     
