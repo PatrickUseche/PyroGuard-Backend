@@ -31,7 +31,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key') ## Pend
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*'] # Permitir todos los host para desarrollo, pero en producción se debe restringir a los dominios permitidos.
+ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1'] # Permitir todos los host para desarrollo, pero en producción se debe restringir a los dominios permitidos.
 
 
 # Application definition
