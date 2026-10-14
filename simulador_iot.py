@@ -1,3 +1,4 @@
+import os
 import requests
 import time
 import random
@@ -6,6 +7,7 @@ from datetime import datetime, timezone
 API_URL = "https://pyroguard-backend.onrender.com/api/readings/"
 NODE_ID = "NODE-001"
 INTERVAL_SECONDS = 5
+INGEST_API_KEY = os.getenv("INGEST_API_KEY", "")
 
 def generate_simulated_data():
     """Genera datos aleatorios que simulan la lectura de los sensores."""
@@ -35,6 +37,11 @@ def generate_simulated_data():
     
 def send_data():
     """Bucle principal que envia datos continuamente a la API."""
+    if not INGEST_API_KEY:
+        raise RuntimeError(
+            "Configura INGEST_API_KEY en el entorno antes de iniciar el simulador."
+        )
+
     print(f"Iniciando simulador IoT para el nodo {NODE_ID}")
     print(f"Enviando datos a {API_URL} cada {INTERVAL_SECONDS} segundos...")
     print("-" * 40)
@@ -45,13 +52,22 @@ def send_data():
             print(f"Enviando: Temperatura: {payload['temperature']}°C | Humedad: {payload['humidity']}% | Humo: {payload['smoke']} | Llama: {payload['flame']}")
             
             try: 
-                response = requests.post(API_URL, json = payload)
+                response = requests.post(
+                    API_URL,
+                    json=payload,
+                    headers={"X-API-Key": INGEST_API_KEY},
+                )
                 if response.status_code == 201:
                     print("ENVIO EXITOSO")
                 else:
-                    print("Error en el envio. Codigo: {response.status_code}. Detalles: {responde.text}")
+                    print(
+                        f"Error en el envío. Código: {response.status_code}."
+                    )
             except requests.exceptions.RequestException as error:
-                print("No se pudo conectar al servidor. ¿Esta encendido? Detalle: {error}")
+                print(
+                    "No se pudo conectar al servidor. "
+                    f"Tipo de error: {type(error).__name__}."
+                )
             time.sleep(INTERVAL_SECONDS)
     except KeyboardInterrupt:
         print("\nSimulador detenido por el usuario.")

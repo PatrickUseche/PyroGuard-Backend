@@ -4,10 +4,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import SensorReadingSerializer
 from .models import SensorReading
+from .permissions import IsAuthenticatedOrIngestAPIKey
 
 # Create your views here.
 
 class ReceiveMeasurementView(APIView):
+    permission_classes = [IsAuthenticatedOrIngestAPIKey]
+
     def post(self, request):
         serializer = SensorReadingSerializer(data=request.data)
         
