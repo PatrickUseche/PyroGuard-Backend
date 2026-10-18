@@ -603,3 +603,218 @@ class AlertEndpointTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class NodeApiTests(APITestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="NODE-CRUD")
+
+    def test_public_crud_reads_and_authenticated_create_update(self):
+        self.assertEqual(self.client.get(reverse("node-list")).status_code, 200)
+        detail = self.client.get(reverse("node-detail", args=[self.node.node_id]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.data["connection_status"], "UNKNOWN")
+
+        denied = self.client.post(
+            reverse("node-list"),
+            {"node_id": "NODE-NEW", "name": "Nuevo"},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        user = get_user_model().objects.create_user(username="node-editor")
+        self.client.force_authenticate(user=user)
+        created = self.client.post(
+            reverse("node-list"),
+            {"node_id": "NODE-NEW", "name": "Nuevo"},
+            format="json",
+        )
+        updated = self.client.patch(
+            reverse("node-detail", args=[self.node.node_id]),
+            {"name": "Actualizado"},
+            format="json",
+        )
+        deleted = self.client.delete(reverse("node-detail", args=["NODE-NEW"]))
+
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        self.assertEqual(updated.data["name"], "Actualizado")
+        self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Node.objects.filter(node_id="NODE-NEW").exists())
+
+    def test_duplicate_node_id_and_immutable_id_return_clear_errors(self):
+        user = get_user_model().objects.create_user(username="node-editor-2")
+        self.client.force_authenticate(user=user)
+
+        duplicate = self.client.post(
+            reverse("node-list"),
+            {"node_id": self.node.node_id},
+            format="json",
+        )
+        changed_id = self.client.patch(
+            reverse("node-detail", args=[self.node.node_id]),
+            {"node_id": "NODE-OTHER"},
+            format="json",
+        )
+
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Ya existe", str(duplicate.data["errors"]["node_id"]))
+        self.assertEqual(changed_id.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "no se puede modificar",
+            str(changed_id.data["errors"]["node_id"]),
+        )
+
+    @override_settings(NODE_OFFLINE_THRESHOLD_SECONDS=60)
+    def test_connection_status_unknown_online_and_offline(self):
+        self.assertEqual(self.node.connection_status, "UNKNOWN")
+        self.node.last_communication = timezone.now()
+        self.assertEqual(self.node.connection_status, "ONLINE")
+        self.node.last_communication = timezone.now() - timedelta(seconds=61)
+        self.assertEqual(self.node.connection_status, "OFFLINE")
+
+    @override_settings(NODE_OFFLINE_THRESHOLD_SECONDS=60)
+    def test_status_marks_offline_risk_as_stale(self):
+        reading = SensorReading.objects.create(
+            node=self.node,
+            temperature=42,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+        RiskAssessment.objects.create(
+            reading=reading,
+            risk_level=RiskAssessment.RiskLevel.WARNING,
+            rule_reasons=["Temperatura elevada"],
+        )
+        self.node.last_communication = timezone.now() - timedelta(minutes=10)
+        self.node.save(update_fields=["last_communication"])
+        Alert.objects.create(
+            node=self.node,
+            reading=reading,
+            level=Alert.Level.WARNING,
+            message="Alerta de prueba",
+        )
+
+        response = self.client.get(
+            reverse("node_status", args=[self.node.node_id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["connection_status"], "OFFLINE")
+        self.assertTrue(response.data["current_risk_stale"])
+        self.assertEqual(response.data["current_risk"], "WARNING")
+        self.assertEqual(response.data["active_alerts_count"], 1)
+        self.assertIsNotNone(response.data["latest_reading"])
+
+    def test_node_readings_reuse_filters_and_unknown_node_is_404(self):
+        now = timezone.now()
+        other_node = Node.objects.create(node_id="NODE-OTHER")
+        for node, minutes in ((self.node, 2), (self.node, 1), (other_node, 1)):
+            SensorReading.objects.create(
+                node=node,
+                temperature=20,
+                humidity=50,
+                smoke=0,
+                flame=False,
+                timestamp=now - timedelta(minutes=minutes),
+            )
+
+        response = self.client.get(
+            reverse("node_readings", args=[self.node.node_id]),
+            {"limit": 1, "order": "asc"},
+        )
+        missing = self.client.get(reverse("node_readings", args=["MISSING"]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["node_id"], self.node.node_id)
+        self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class DashboardAndLoginTests(APITestCase):
+    def test_dashboard_summary_with_no_nodes(self):
+        response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_nodes"], 0)
+        self.assertEqual(response.data["nodes_online"], 0)
+        self.assertEqual(response.data["nodes_offline"], 0)
+        self.assertEqual(response.data["nodes_unknown"], 0)
+        self.assertEqual(response.data["nodes_at_risk"], 0)
+        self.assertEqual(response.data["active_alerts"], 0)
+        self.assertEqual(response.data["overall_risk"], "NORMAL")
+        self.assertEqual(response.data["latest_readings"], [])
+
+    @override_settings(NODE_OFFLINE_THRESHOLD_SECONDS=60)
+    def test_dashboard_summary_counts_status_risk_and_latest_readings(self):
+        now = timezone.now()
+        online_node = Node.objects.create(
+            node_id="SUM-ONLINE",
+            last_communication=now,
+        )
+        offline_node = Node.objects.create(
+            node_id="SUM-OFFLINE",
+            last_communication=now - timedelta(minutes=5),
+        )
+        Node.objects.create(node_id="SUM-UNKNOWN")
+
+        readings_by_node = {}
+        for node, level in (
+            (online_node, RiskAssessment.RiskLevel.FIRE),
+            (offline_node, RiskAssessment.RiskLevel.WARNING),
+        ):
+            reading = SensorReading.objects.create(
+                node=node,
+                temperature=55,
+                humidity=30,
+                smoke=70,
+                flame=True,
+            )
+            RiskAssessment.objects.create(
+                reading=reading,
+                risk_level=level,
+                rule_reasons=["Prueba"],
+            )
+            readings_by_node[node.node_id] = reading
+
+        Alert.objects.create(
+            node=online_node,
+            reading=readings_by_node[online_node.node_id],
+            level=Alert.Level.FIRE,
+            message="Activa",
+        )
+        Alert.objects.create(
+            node=offline_node,
+            reading=readings_by_node[offline_node.node_id],
+            level=Alert.Level.WARNING,
+            status=Alert.Status.ACKNOWLEDGED,
+            message="Reconocida",
+        )
+
+        response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_nodes"], 3)
+        self.assertEqual(response.data["nodes_online"], 1)
+        self.assertEqual(response.data["nodes_offline"], 1)
+        self.assertEqual(response.data["nodes_unknown"], 1)
+        self.assertEqual(response.data["nodes_at_risk"], 1)
+        self.assertEqual(response.data["active_alerts"], 2)
+        self.assertEqual(response.data["overall_risk"], "FIRE")
+        self.assertEqual(len(response.data["latest_readings"]), 2)
+
+    def test_token_login(self):
+        user = get_user_model().objects.create_user(
+            username="api-login",
+            password="strong-password-123",
+        )
+
+        response = self.client.post(
+            reverse("api_token_auth"),
+            {"username": user.username, "password": "strong-password-123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)

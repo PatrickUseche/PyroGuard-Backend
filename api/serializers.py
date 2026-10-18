@@ -145,3 +145,48 @@ class AlertSerializer(serializers.ModelSerializer):
             "acknowledged_at",
             "closed_at",
         ]
+
+
+class NodeSerializer(serializers.ModelSerializer):
+    node_id = serializers.CharField(
+        max_length=50,
+        error_messages={
+            "required": "El identificador del nodo es obligatorio.",
+            "blank": "El identificador del nodo no puede estar vacío.",
+        },
+    )
+    connection_status = serializers.CharField(read_only=True)
+    current_risk = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Node
+        fields = [
+            "node_id",
+            "name",
+            "description",
+            "latitude",
+            "longitude",
+            "is_active",
+            "created_at",
+            "last_communication",
+            "connection_status",
+            "current_risk",
+        ]
+        read_only_fields = ("created_at", "last_communication")
+
+    def validate_node_id(self, value):
+        if self.instance and value != self.instance.node_id:
+            raise serializers.ValidationError(
+                "El identificador del nodo no se puede modificar."
+            )
+        existing_nodes = Node.objects.filter(node_id=value)
+        if self.instance:
+            existing_nodes = existing_nodes.exclude(pk=self.instance.pk)
+        if existing_nodes.exists():
+            raise serializers.ValidationError(
+                "Ya existe un nodo con este identificador."
+            )
+        return value
+
+    def get_current_risk(self, instance):
+        return getattr(instance, "current_risk", None)

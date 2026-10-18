@@ -1,34 +1,66 @@
 import logging
-from datetime import timedelta
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.exceptions import ParseError
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 
-from .models import Alert, SensorReading
+from .models import Alert, Node, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey
-from .serializers import AlertSerializer, SensorReadingSerializer
+from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
+from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
+from .services.reading_queries import filter_readings, parse_datetime_parameter
 
 
 logger = logging.getLogger("api.readings")
 
 
-def _parse_datetime_parameter(value, parameter_name):
-    parsed_value = parse_datetime(value)
-    if parsed_value is None:
-        raise ParseError(
-            f"El parámetro '{parameter_name}' debe tener formato ISO 8601."
+class NodeViewSet(ModelViewSet):
+    queryset = Node.objects.all()
+    serializer_class = NodeSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    lookup_field = "node_id"
+    lookup_url_kwarg = "node_id"
+
+    def get_queryset(self):
+        return nodes_with_current_risk()
+
+
+class NodeStatusView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, node_id):
+        return Response(get_node_status(node_id))
+
+
+class NodeReadingsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, node_id):
+        node = get_object_or_404(Node, node_id=node_id)
+        readings = SensorReading.objects.filter(node=node).select_related(
+            "node",
+            "assessment",
         )
-    if timezone.is_naive(parsed_value):
-        parsed_value = timezone.make_aware(parsed_value)
-    return parsed_value
+        readings = filter_readings(readings, request.query_params)
+        return Response(SensorReadingSerializer(readings, many=True).data)
+
+
+class DashboardSummaryView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_dashboard_summary())
 
 
 class ReceiveMeasurementView(APIView):
@@ -62,54 +94,7 @@ class ReceiveMeasurementView(APIView):
         if node_id:
             readings = readings.filter(node__node_id=node_id)
 
-        try:
-            from_value = request.query_params.get("from")
-            to_value = request.query_params.get("to")
-            from_date = (
-                _parse_datetime_parameter(from_value, "from")
-                if from_value
-                else None
-            )
-            to_date = (
-                _parse_datetime_parameter(to_value, "to") if to_value else None
-            )
-            if from_date and to_date and from_date > to_date:
-                raise ParseError(
-                    "El parámetro 'from' no puede ser posterior a 'to'."
-                )
-            if from_date:
-                readings = readings.filter(timestamp__gte=from_date)
-            if to_date:
-                readings = readings.filter(timestamp__lte=to_date)
-
-            range_value = request.query_params.get("range")
-            if range_value:
-                range_durations = {
-                    "24h": timedelta(hours=24),
-                    "7d": timedelta(days=7),
-                }
-                if range_value not in range_durations:
-                    raise ParseError("'range' debe ser '24h' o '7d'.")
-                readings = readings.filter(
-                    timestamp__gte=timezone.now() - range_durations[range_value]
-                )
-
-            limit = int(request.query_params.get("limit", "20"))
-            if not 1 <= limit <= 500:
-                raise ParseError("'limit' debe estar entre 1 y 500.")
-        except (TypeError, ValueError):
-            raise ParseError("'limit' debe ser un número entero.")
-        except ParseError as error:
-            logger.warning("Consulta de lecturas rechazada: %s", error.detail)
-            raise
-
-        order = request.query_params.get("order", "desc")
-        if order not in {"asc", "desc"}:
-            logger.warning("Consulta de lecturas rechazada: orden inválido.")
-            raise ParseError("'order' debe ser 'asc' o 'desc'.")
-
-        timestamp_order = "timestamp" if order == "asc" else "-timestamp"
-        readings = readings.order_by(timestamp_order, "pk")[:limit]
+        readings = filter_readings(readings, request.query_params)
         return Response(
             SensorReadingSerializer(readings, many=True).data,
             status=status.HTTP_200_OK,
@@ -134,9 +119,11 @@ class AlertListView(APIView):
         from_value = request.query_params.get("from")
         to_value = request.query_params.get("to")
         from_date = (
-            _parse_datetime_parameter(from_value, "from") if from_value else None
+            parse_datetime_parameter(from_value, "from") if from_value else None
         )
-        to_date = _parse_datetime_parameter(to_value, "to") if to_value else None
+        to_date = (
+            parse_datetime_parameter(to_value, "to") if to_value else None
+        )
         if from_date and to_date and from_date > to_date:
             raise ParseError("El parámetro 'from' no puede ser posterior a 'to'.")
         if from_date:
