@@ -4,7 +4,8 @@ venv/
 .venv/
 
 # Archivos de configuración local y variables de entorno (secretos)
-.env
+.env*
+!.env.example
 *.log
 
 # Archivos compilados de Python
@@ -14,6 +15,9 @@ __pycache__/
 
 # Base de datos local (SQLite)
 *.sqlite3
+
+# Archivos estáticos recopilados para despliegue
+staticfiles/
 
 # Configuraciones de IDEs
 .vscode/
