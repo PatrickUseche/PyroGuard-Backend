@@ -19,6 +19,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 
+from config import settings as settings_module
 from config.settings import _env_positive_float, _env_service_url
 
 from .exceptions import api_exception_handler
@@ -852,20 +853,33 @@ class AIServiceSettingsTests(SimpleTestCase):
             with self.assertRaises(ImproperlyConfigured):
                 _env_service_url("AI_SERVICE_URL")
 
-    def test_timeout_uses_default_when_missing(self):
-        with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": ""}):
-            self.assertEqual(_env_positive_float("AI_SERVICE_TIMEOUT", 2.5), 2.5)
+    def test_timeouts_use_defaults_when_missing(self):
+        for name, default in (("AI_CONNECT_TIMEOUT", 3.0), ("AI_READ_TIMEOUT", 10.0)):
+            with self.subTest(name=name):
+                with patch.dict(os.environ, {name: ""}):
+                    self.assertEqual(_env_positive_float(name, default), default)
 
-    def test_timeout_is_parsed(self):
-        with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": "4"}):
-            self.assertEqual(_env_positive_float("AI_SERVICE_TIMEOUT", 2.5), 4.0)
+    def test_timeouts_are_parsed(self):
+        for name, default in (("AI_CONNECT_TIMEOUT", 3.0), ("AI_READ_TIMEOUT", 10.0)):
+            with self.subTest(name=name):
+                with patch.dict(os.environ, {name: "4"}):
+                    self.assertEqual(_env_positive_float(name, default), 4.0)
+
+    def test_settings_define_split_timeouts(self):
+        # Sin comparar valores: dependen del .env local; los defaults se prueban arriba.
+        for name in ("AI_CONNECT_TIMEOUT", "AI_READ_TIMEOUT"):
+            with self.subTest(name=name):
+                value = getattr(settings_module, name)
+                self.assertIsInstance(value, float)
+                self.assertGreater(value, 0)
+        self.assertFalse(hasattr(settings_module, "AI_SERVICE_TIMEOUT"))
 
     def test_invalid_timeout_is_rejected(self):
         for value in ("abc", "0", "-1", "nan", "inf"):
             with self.subTest(value=value):
-                with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": value}):
+                with patch.dict(os.environ, {"AI_READ_TIMEOUT": value}):
                     with self.assertRaises(ImproperlyConfigured):
-                        _env_positive_float("AI_SERVICE_TIMEOUT", 2.5)
+                        _env_positive_float("AI_READ_TIMEOUT", 10.0)
 
 
 class RiskAssessmentAIFieldsTests(TestCase):
@@ -909,6 +923,8 @@ class RiskAssessmentAIFieldsTests(TestCase):
 
 
 AI_TEST_URL = "http://ia.test"
+AI_TEST_CONNECT_TIMEOUT = 1.5
+AI_TEST_READ_TIMEOUT = 7.5
 
 
 def ai_response(status_code, body=None, raw=None):
@@ -936,7 +952,12 @@ def ai_success_body(**overrides):
     return body
 
 
-@override_settings(AI_SERVICE_URL=AI_TEST_URL, AI_SERVICE_TIMEOUT=2.5, AI_API_KEY="")
+@override_settings(
+    AI_SERVICE_URL=AI_TEST_URL,
+    AI_CONNECT_TIMEOUT=AI_TEST_CONNECT_TIMEOUT,
+    AI_READ_TIMEOUT=AI_TEST_READ_TIMEOUT,
+    AI_API_KEY="",
+)
 class AIClientTests(SimpleTestCase):
     def setUp(self):
         self.reading = SensorReading(
@@ -970,7 +991,7 @@ class AIClientTests(SimpleTestCase):
             f"{AI_TEST_URL}/predict",
             json=build_payload(self.reading),
             headers={},
-            timeout=2.5,
+            timeout=(AI_TEST_CONNECT_TIMEOUT, AI_TEST_READ_TIMEOUT),
         )
         payload = post.call_args.kwargs["json"]
         self.assertEqual(payload["node_id"], "AI-NODE")
@@ -1321,7 +1342,8 @@ class AIReadingRepresentationTests(APITestCase):
 @override_settings(
     INGEST_API_KEY="test-ingest-key",
     AI_SERVICE_URL=AI_TEST_URL,
-    AI_SERVICE_TIMEOUT=2.5,
+    AI_CONNECT_TIMEOUT=AI_TEST_CONNECT_TIMEOUT,
+    AI_READ_TIMEOUT=AI_TEST_READ_TIMEOUT,
     AI_API_KEY="clave-ia",
 )
 class AIIngestionResilienceTests(APITestCase):
@@ -1425,7 +1447,10 @@ class AIIngestionResilienceTests(APITestCase):
         self.assertEqual(response.data["reading"]["ai"]["status"], "OK")
         self.assertEqual(Alert.objects.get().level, Alert.Level.FIRE)
         self.assertEqual(post.call_args.kwargs["headers"], {"X-AI-API-Key": "clave-ia"})
-        self.assertEqual(post.call_args.kwargs["timeout"], 2.5)
+        self.assertEqual(
+            post.call_args.kwargs["timeout"],
+            (AI_TEST_CONNECT_TIMEOUT, AI_TEST_READ_TIMEOUT),
+        )
 
     def test_saved_reading_is_sent_according_to_contract(self):
         _, post = self.post_reading(
@@ -1457,7 +1482,12 @@ def contract_example(name):
     return json.loads((CONTRACT_EXAMPLES_DIR / name).read_text(encoding="utf-8"))
 
 
-@override_settings(AI_SERVICE_URL=AI_TEST_URL, AI_SERVICE_TIMEOUT=2.5, AI_API_KEY="")
+@override_settings(
+    AI_SERVICE_URL=AI_TEST_URL,
+    AI_CONNECT_TIMEOUT=AI_TEST_CONNECT_TIMEOUT,
+    AI_READ_TIMEOUT=AI_TEST_READ_TIMEOUT,
+    AI_API_KEY="",
+)
 class AIContractExamplesTests(TestCase):
     """Usa los ejemplos compartidos con PyroGuard-IA (docs/contract/examples)."""
 

@@ -65,7 +65,7 @@ def request_prediction(reading: SensorReading) -> AIPrediction:
             f"{settings.AI_SERVICE_URL}/predict",
             json=build_payload(reading),
             headers=headers,
-            timeout=settings.AI_SERVICE_TIMEOUT,
+            timeout=(settings.AI_CONNECT_TIMEOUT, settings.AI_READ_TIMEOUT),
         )
     except requests.RequestException as error:
         logger.warning(
