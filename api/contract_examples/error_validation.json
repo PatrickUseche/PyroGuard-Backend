@@ -1,0 +1,7 @@
+{
+  "status": "error",
+  "code": "VALIDATION_ERROR",
+  "errors": {
+    "temperature": ["Input should be less than or equal to 150"]
+  }
+}

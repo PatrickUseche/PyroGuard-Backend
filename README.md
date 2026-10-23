@@ -232,7 +232,13 @@ python manage.py test
 ```
 
 El test runner crea y destruye su propia base SQLite temporal. No uses una URL
-de una base compartida para estas comprobaciones.
+de una base compartida para estas comprobaciones. Los tests nunca llaman al
+servicio de IA real: la red se simula.
+
+`api/contract_examples/` es una copia de `docs/contract/examples/` de
+PyroGuard-IA, y ambas suites la usan para verificar el contrato IA-Backend.
+Si el contrato cambia, actualiza la carpeta en PyroGuard-IA y cópiala aquí sin
+modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 
 ## Despliegue en Render
 

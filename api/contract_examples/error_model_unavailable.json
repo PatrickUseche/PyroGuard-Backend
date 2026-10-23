@@ -1,0 +1,7 @@
+{
+  "status": "error",
+  "code": "MODEL_UNAVAILABLE",
+  "errors": {
+    "detail": "Modelo no disponible. Ejecuta scripts/2_entrenar_modelo.py."
+  }
+}

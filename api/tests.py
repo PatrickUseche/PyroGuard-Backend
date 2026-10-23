@@ -1,7 +1,8 @@
 import json
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import requests
@@ -22,6 +23,7 @@ from config.settings import _env_positive_float, _env_service_url
 
 from .exceptions import api_exception_handler
 from .models import Alert, Node, RiskAssessment, SensorReading
+from .serializers import SensorReadingSerializer
 from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
@@ -1446,3 +1448,67 @@ class AIIngestionResilienceTests(APITestCase):
                 "timestamp": reading.timestamp.isoformat(),
             },
         )
+
+
+CONTRACT_EXAMPLES_DIR = Path(__file__).resolve().parent / "contract_examples"
+
+
+def contract_example(name):
+    return json.loads((CONTRACT_EXAMPLES_DIR / name).read_text(encoding="utf-8"))
+
+
+@override_settings(AI_SERVICE_URL=AI_TEST_URL, AI_SERVICE_TIMEOUT=2.5, AI_API_KEY="")
+class AIContractExamplesTests(TestCase):
+    """Usa los ejemplos compartidos con PyroGuard-IA (docs/contract/examples)."""
+
+    def setUp(self):
+        Node.objects.create(node_id="NODE-001")
+
+    def save_reading(self, example):
+        serializer = SensorReadingSerializer(data=example)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        return serializer.save()
+
+    def test_request_examples_are_valid_readings_and_round_trip(self):
+        for path in sorted(CONTRACT_EXAMPLES_DIR.glob("request_*.json")):
+            with self.subTest(example=path.name):
+                example = contract_example(path.name)
+                payload = build_payload(self.save_reading(example))
+
+                sent_timestamp = datetime.fromisoformat(payload.pop("timestamp"))
+                expected_timestamp = datetime.fromisoformat(example.pop("timestamp"))
+                self.assertEqual(sent_timestamp, expected_timestamp)
+                self.assertEqual(payload, example)
+
+    def test_response_example_is_parsed(self):
+        reading = self.save_reading(contract_example("request_fire.json"))
+        example = contract_example("response_ok.json")
+
+        with patch("api.services.ai_client.requests.post") as post:
+            post.return_value = ai_response(200, example)
+            prediction = request_prediction(reading)
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.OK)
+        self.assertEqual(prediction.risk_level, example["risk_level"])
+        self.assertEqual(prediction.probability, example["risk_probability"])
+        self.assertEqual(prediction.probabilities, example["probabilities"])
+        self.assertEqual(prediction.model_version, example["model_version"])
+        self.assertEqual(prediction.explanation, example["safety_rules"]["explanation"])
+
+    def test_error_examples_map_to_ai_status(self):
+        reading = self.save_reading(contract_example("request_fire.json"))
+        cases = {
+            "error_validation.json": (422, RiskAssessment.AIStatus.REJECTED),
+            "error_unauthorized.json": (401, RiskAssessment.AIStatus.REJECTED),
+            "error_model_unavailable.json": (503, RiskAssessment.AIStatus.UNAVAILABLE),
+        }
+        for name, (status_code, expected_status) in cases.items():
+            with self.subTest(example=name):
+                with patch("api.services.ai_client.requests.post") as post:
+                    post.return_value = ai_response(status_code, contract_example(name))
+                    with self.assertLogs("api.ai", level="WARNING") as logs:
+                        prediction = request_prediction(reading)
+
+                self.assertEqual(prediction.status, expected_status)
+                if status_code != 401:
+                    self.assertIn(contract_example(name)["code"], logs.output[0])
