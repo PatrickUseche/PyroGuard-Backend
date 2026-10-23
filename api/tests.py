@@ -8,7 +8,8 @@ import requests
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase, override_settings
+from django.db import connection
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -97,6 +98,8 @@ class RiskRulesTests(SimpleTestCase):
         self.assertEqual(result["level"], "FIRE")
 
 
+# Aísla la ingesta de un AI_SERVICE_URL definido en el .env local.
+@override_settings(AI_SERVICE_URL="")
 class ReadingsContractTests(APITestCase):
     ingest_api_key = "test-ingest-key"
 
@@ -1080,3 +1083,152 @@ class AIClientTests(SimpleTestCase):
         )
 
         self.assertEqual(len(prediction.model_version), 100)
+
+
+def ai_prediction(risk_level="FIRE", probability=0.97, **overrides):
+    values = {
+        "status": RiskAssessment.AIStatus.OK,
+        "risk_level": risk_level,
+        "probability": probability,
+        "probabilities": {"NORMAL": 0.03, "WARNING": 0.07, "FIRE": 0.9},
+        "model_version": "pyroguard-rf-1.0.0",
+        "explanation": "Señales concordantes.",
+    }
+    values.update(overrides)
+    return AIPrediction(**values)
+
+
+@override_settings(INGEST_API_KEY="test-ingest-key")
+class AIIngestionTests(APITestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="AI-INGEST")
+
+    def post_reading(self, **values):
+        payload = {
+            "node_id": self.node.node_id,
+            "temperature": 22,
+            "humidity": 60,
+            "smoke": 10,
+            "flame": False,
+            "timestamp": timezone.now().isoformat(),
+        }
+        payload.update(values)
+        response = self.client.post(
+            reverse("receive_reading"),
+            payload,
+            format="json",
+            HTTP_X_API_KEY="test-ingest-key",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        return response, RiskAssessment.objects.get(reading__node=self.node)
+
+    @patch("api.services.ingestion.request_prediction")
+    def test_stores_ai_result_and_reason(self, predict):
+        predict.return_value = ai_prediction()
+
+        response, assessment = self.post_reading(temperature=55, smoke=80, flame=True)
+
+        self.assertEqual(response.data["risk_level"], "FIRE")
+        self.assertIsNotNone(response.data["alert_id"])
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.OK)
+        self.assertEqual(assessment.ai_risk_level, "FIRE")
+        self.assertEqual(assessment.ai_probability, 0.97)
+        self.assertEqual(assessment.ai_probabilities["FIRE"], 0.9)
+        self.assertEqual(assessment.ai_model_version, "pyroguard-rf-1.0.0")
+        self.assertIn("IA: Señales concordantes.", assessment.rule_reasons)
+
+    @patch("api.services.ingestion.request_prediction")
+    def test_ai_can_raise_risk_level(self, predict):
+        predict.return_value = ai_prediction(risk_level="WARNING", probability=0.6)
+
+        response, assessment = self.post_reading()
+
+        self.assertEqual(response.data["risk_level"], "WARNING")
+        self.assertEqual(assessment.risk_level, "WARNING")
+        self.assertIn(
+            "La probabilidad de IA alcanzó el nivel de advertencia.",
+            assessment.rule_reasons,
+        )
+
+    @patch("api.services.ingestion.request_prediction")
+    def test_ai_cannot_lower_rule_based_fire(self, predict):
+        predict.return_value = ai_prediction(
+            risk_level="NORMAL",
+            probability=0.0,
+            probabilities={"NORMAL": 1.0, "WARNING": 0.0, "FIRE": 0.0},
+        )
+
+        response, assessment = self.post_reading(temperature=55, smoke=80, flame=True)
+
+        self.assertEqual(response.data["risk_level"], "FIRE")
+        self.assertEqual(assessment.risk_level, "FIRE")
+        self.assertEqual(assessment.ai_risk_level, "NORMAL")
+
+    @patch("api.services.ingestion.request_prediction")
+    def test_unavailable_ai_falls_back_to_rules(self, predict):
+        predict.return_value = AIPrediction(status=RiskAssessment.AIStatus.UNAVAILABLE)
+
+        response, assessment = self.post_reading(temperature=45)
+
+        self.assertEqual(response.data["risk_level"], "WARNING")
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.UNAVAILABLE)
+        self.assertIsNone(assessment.ai_probability)
+        self.assertEqual(assessment.ai_risk_level, "")
+        self.assertFalse(any(reason.startswith("IA:") for reason in assessment.rule_reasons))
+
+    @override_settings(AI_SERVICE_URL="")
+    def test_disabled_ai_is_recorded(self):
+        _, assessment = self.post_reading()
+
+        self.assertEqual(assessment.risk_level, "NORMAL")
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.DISABLED)
+
+    @patch(
+        "api.services.ingestion.request_prediction",
+        side_effect=RuntimeError("fallo del cliente"),
+    )
+    def test_unexpected_client_error_keeps_reading_and_uses_rules(self, _predict):
+        with self.assertLogs("api.readings", level="ERROR"):
+            response, assessment = self.post_reading(temperature=45)
+
+        self.assertEqual(response.data["risk_level"], "WARNING")
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.UNAVAILABLE)
+        self.assertEqual(SensorReading.objects.count(), 1)
+
+
+@override_settings(INGEST_API_KEY="test-ingest-key")
+class AIIngestionTransactionTests(TransactionTestCase):
+    def test_ai_is_called_after_reading_is_committed(self):
+        node = Node.objects.create(node_id="AI-TX")
+        observed = {}
+
+        def fake_prediction(reading):
+            observed["in_atomic_block"] = connection.in_atomic_block
+            observed["reading_committed"] = SensorReading.objects.filter(
+                pk=reading.pk
+            ).exists()
+            return AIPrediction(status=RiskAssessment.AIStatus.UNAVAILABLE)
+
+        with patch(
+            "api.services.ingestion.request_prediction",
+            side_effect=fake_prediction,
+        ):
+            response = self.client.post(
+                reverse("receive_reading"),
+                {
+                    "node_id": node.node_id,
+                    "temperature": 22,
+                    "humidity": 60,
+                    "smoke": 10,
+                    "flame": False,
+                    "timestamp": timezone.now().isoformat(),
+                },
+                content_type="application/json",
+                HTTP_X_API_KEY="test-ingest-key",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            observed,
+            {"in_atomic_block": False, "reading_committed": True},
+        )
