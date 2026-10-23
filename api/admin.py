@@ -35,11 +35,13 @@ class RiskAssessmentAdmin(admin.ModelAdmin):
     list_display = (
         "reading",
         "risk_level",
+        "ai_status",
+        "ai_risk_level",
         "ai_probability",
         "ai_model_version",
         "created_at",
     )
-    list_filter = ("risk_level", "created_at")
+    list_filter = ("risk_level", "ai_status", "ai_risk_level", "created_at")
     search_fields = ("reading__node__node_id", "ai_model_version")
 
 

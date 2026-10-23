@@ -855,3 +855,43 @@ class AIServiceSettingsTests(SimpleTestCase):
                 with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": value}):
                     with self.assertRaises(ImproperlyConfigured):
                         _env_positive_float("AI_SERVICE_TIMEOUT", 2.5)
+
+
+class RiskAssessmentAIFieldsTests(TestCase):
+    def setUp(self):
+        node = Node.objects.create(node_id="AI-FIELDS-NODE")
+        self.reading = SensorReading.objects.create(
+            node=node,
+            temperature=20,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+
+    def test_assessment_without_ai_defaults_to_disabled(self):
+        assessment = RiskAssessment.objects.create(
+            reading=self.reading,
+            risk_level=RiskAssessment.RiskLevel.NORMAL,
+        )
+
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.DISABLED)
+        self.assertEqual(assessment.ai_risk_level, "")
+        self.assertEqual(assessment.ai_probabilities, {})
+        self.assertIsNone(assessment.ai_probability)
+
+    def test_assessment_stores_ai_result(self):
+        probabilities = {"NORMAL": 0.1, "WARNING": 0.2, "FIRE": 0.7}
+        RiskAssessment.objects.create(
+            reading=self.reading,
+            risk_level=RiskAssessment.RiskLevel.FIRE,
+            ai_status=RiskAssessment.AIStatus.OK,
+            ai_risk_level=RiskAssessment.RiskLevel.WARNING,
+            ai_probability=0.9,
+            ai_probabilities=probabilities,
+            ai_model_version="pyroguard-rf-1.0.0",
+        )
+
+        assessment = RiskAssessment.objects.get(reading=self.reading)
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.OK)
+        self.assertEqual(assessment.ai_risk_level, RiskAssessment.RiskLevel.WARNING)
+        self.assertEqual(assessment.ai_probabilities, probabilities)
