@@ -1,0 +1,9 @@
+{
+  "node_id": "NODE-001",
+  "temperature": 48.0,
+  "humidity": 10.0,
+  "smoke": 320.0,
+  "gas": 150.0,
+  "flame": true,
+  "timestamp": "2026-10-13T22:00:00-05:00"
+}

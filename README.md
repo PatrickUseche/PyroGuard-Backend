@@ -2,8 +2,10 @@
 
 API Django REST Framework para recibir lecturas IoT, clasificarlas con reglas,
 mantener alertas persistentes y exponer el estado de nodos para el dashboard.
-La evaluación actual es determinista y basada en reglas; la probabilidad de IA
-queda preparada para una futura integración.
+El riesgo se evalúa con reglas deterministas y, si `AI_SERVICE_URL` está
+configurada, con la probabilidad del servicio PyroGuard-IA, que solo puede
+elevar el nivel. Si la IA no responde, la lectura se guarda y se evalúa solo
+con reglas.
 
 ## Arquitectura
 
@@ -53,6 +55,9 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `NODE_OFFLINE_THRESHOLD_SECONDS` | Segundos sin comunicación para marcar OFFLINE | `300` |
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
+| `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
+| `AI_SERVICE_TIMEOUT` | Segundos máximos por predicción (> 0) | `2.5` |
+| `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
 | `EXTRA_CORS_ORIGINS` | Orígenes CORS adicionales separados por comas | Vacío |
@@ -133,6 +138,26 @@ minutos en el futuro. Rangos aceptados: temperatura `-50..150`, humedad
 resultados (`[]`). `range` acepta `24h` o `7d`; `limit` va de 1 a 500 y por
 defecto es 20; `order` acepta `asc` o `desc` y por defecto es `desc`.
 
+Cada lectura incluye `risk_level`, la decisión final del backend, y `ai`, el
+resultado de PyroGuard-IA usado como evidencia (`null` si la lectura aún no
+tiene evaluación):
+
+```json
+"ai": {
+	"status": "OK",
+	"risk_level": "WARNING",
+	"probability": 0.6,
+	"probabilities": {"NORMAL": 0.4, "WARNING": 0.35, "FIRE": 0.25},
+	"model_version": "pyroguard-rf-1.0.0"
+}
+```
+
+`status` puede ser `OK`, `DISABLED` (sin `AI_SERVICE_URL`), `UNAVAILABLE`
+(timeout, conexión o error del servicio), `REJECTED` (credencial o datos
+rechazados) o `INVALID_RESPONSE`. Si no es `OK`, el riesgo se calcula solo con
+reglas y los demás campos de `ai` son `null` o `{}`. La IA puede elevar el nivel
+de riesgo, pero nunca reducir el resultado de las reglas.
+
 ## Reglas de riesgo
 
 Los umbrales son valores del prototipo, ajustables por el equipo, definidos en
@@ -207,7 +232,13 @@ python manage.py test
 ```
 
 El test runner crea y destruye su propia base SQLite temporal. No uses una URL
-de una base compartida para estas comprobaciones.
+de una base compartida para estas comprobaciones. Los tests nunca llaman al
+servicio de IA real: la red se simula.
+
+`api/contract_examples/` es una copia de `docs/contract/examples/` de
+PyroGuard-IA, y ambas suites la usan para verificar el contrato IA-Backend.
+Si el contrato cambia, actualiza la carpeta en PyroGuard-IA y cópiala aquí sin
+modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 
 ## Despliegue en Render
 

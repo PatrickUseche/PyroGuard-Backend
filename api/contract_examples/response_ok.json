@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "contract_version": "1.0",
+  "node_id": "NODE-001",
+  "timestamp": "2026-10-13T22:00:00-05:00",
+  "model_version": "pyroguard-rf-1.0.0",
+  "model_prediction": "FIRE",
+  "risk_level": "FIRE",
+  "risk_probability": 1.0,
+  "risk_probability_percent": 100.0,
+  "probabilities": {
+    "FIRE": 1.0,
+    "NORMAL": 0.0,
+    "WARNING": 0.0
+  },
+  "safety_rules": {
+    "rule": "FIRE_CORROBORATED",
+    "explanation": "Se detectaron varias señales concordantes de alto riesgo. Verificar la condición del entorno.",
+    "fire_confirmations": [
+      "sensor de llama activo junto con humo >= 80",
+      "sensor de llama activo junto con temperatura >= 35 °C",
+      "sensor de llama activo junto con gas >= 40"
+    ],
+    "warning_signals": [
+      "temperatura >= 30 °C",
+      "humedad <= 35 %",
+      "humo >= 50",
+      "gas >= 30",
+      "sensor de llama activo"
+    ]
+  },
+  "synthetic_model": true,
+  "disclaimer": "Prototipo académico entrenado con datos sintéticos. Las salidas no son una detección certificada de incendios reales y requieren validación con datos de sensores reales y pruebas supervisadas."
+}

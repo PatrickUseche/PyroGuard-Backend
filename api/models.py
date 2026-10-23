@@ -75,6 +75,13 @@ class RiskAssessment(models.Model):
         WARNING = "WARNING", "Warning"
         FIRE = "FIRE", "Fire"
 
+    class AIStatus(models.TextChoices):
+        OK = "OK", "Ok"
+        DISABLED = "DISABLED", "Disabled"
+        UNAVAILABLE = "UNAVAILABLE", "Unavailable"
+        REJECTED = "REJECTED", "Rejected"
+        INVALID_RESPONSE = "INVALID_RESPONSE", "Invalid response"
+
     reading = models.OneToOneField(
         SensorReading,
         on_delete=models.CASCADE,
@@ -83,6 +90,18 @@ class RiskAssessment(models.Model):
     risk_level = models.CharField(max_length=10, choices=RiskLevel.choices)
     ai_probability = models.FloatField(null=True, blank=True)
     ai_model_version = models.CharField(max_length=100, blank=True)
+    # Resultado de PyroGuard-IA guardado para trazabilidad; risk_level es la decisión final.
+    ai_status = models.CharField(
+        max_length=20,
+        choices=AIStatus.choices,
+        default=AIStatus.DISABLED,
+    )
+    ai_risk_level = models.CharField(
+        max_length=10,
+        choices=RiskLevel.choices,
+        blank=True,
+    )
+    ai_probabilities = models.JSONField(default=dict, blank=True)
     rule_reasons = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
 
