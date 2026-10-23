@@ -204,7 +204,10 @@ AUTO_REGISTER_NODES = _env_bool("AUTO_REGISTER_NODES", False)
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.
 AI_SERVICE_URL = _env_service_url("AI_SERVICE_URL")
-AI_SERVICE_TIMEOUT = _env_positive_float("AI_SERVICE_TIMEOUT", 2.5)
+# Conexión corta para detectar rápido un servicio caído; lectura más amplia
+# para dar tiempo a la inferencia.
+AI_CONNECT_TIMEOUT = _env_positive_float("AI_CONNECT_TIMEOUT", 3.0)
+AI_READ_TIMEOUT = _env_positive_float("AI_READ_TIMEOUT", 10.0)
 AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
