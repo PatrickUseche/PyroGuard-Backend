@@ -1,8 +1,10 @@
 import logging
+import os
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
 from django.test import SimpleTestCase
 from django.urls import reverse
@@ -11,6 +13,8 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
+
+from config.settings import _env_positive_float, _env_service_url
 
 from .exceptions import api_exception_handler
 from .models import Alert, Node, RiskAssessment, SensorReading
@@ -818,3 +822,36 @@ class DashboardAndLoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
+
+
+class AIServiceSettingsTests(SimpleTestCase):
+    def test_service_url_is_normalized(self):
+        with patch.dict(os.environ, {"AI_SERVICE_URL": " http://127.0.0.1:8001/ "}):
+            self.assertEqual(
+                _env_service_url("AI_SERVICE_URL"),
+                "http://127.0.0.1:8001",
+            )
+
+    def test_empty_service_url_disables_ai(self):
+        with patch.dict(os.environ, {"AI_SERVICE_URL": ""}):
+            self.assertEqual(_env_service_url("AI_SERVICE_URL"), "")
+
+    def test_service_url_requires_http_scheme(self):
+        with patch.dict(os.environ, {"AI_SERVICE_URL": "127.0.0.1:8001"}):
+            with self.assertRaises(ImproperlyConfigured):
+                _env_service_url("AI_SERVICE_URL")
+
+    def test_timeout_uses_default_when_missing(self):
+        with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": ""}):
+            self.assertEqual(_env_positive_float("AI_SERVICE_TIMEOUT", 2.5), 2.5)
+
+    def test_timeout_is_parsed(self):
+        with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": "4"}):
+            self.assertEqual(_env_positive_float("AI_SERVICE_TIMEOUT", 2.5), 4.0)
+
+    def test_invalid_timeout_is_rejected(self):
+        for value in ("abc", "0", "-1", "nan", "inf"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"AI_SERVICE_TIMEOUT": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_positive_float("AI_SERVICE_TIMEOUT", 2.5)

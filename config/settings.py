@@ -1,3 +1,4 @@
+import math
 import os
 import secrets
 from pathlib import Path
@@ -30,6 +31,26 @@ def _env_list(name):
         for value in os.getenv(name, "").split(",")
         if value.strip()
     ]
+
+
+def _env_positive_float(name, default):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        parsed_value = float(value)
+    except ValueError:
+        raise ImproperlyConfigured(f"{name} debe ser un número.") from None
+    if not math.isfinite(parsed_value) or parsed_value <= 0:
+        raise ImproperlyConfigured(f"{name} debe ser un número mayor que 0.")
+    return parsed_value
+
+
+def _env_service_url(name):
+    value = os.getenv(name, "").strip().rstrip("/")
+    if value and not value.startswith(("http://", "https://")):
+        raise ImproperlyConfigured(f"{name} debe comenzar con http:// o https://.")
+    return value
 
 
 DEBUG = _env_bool("DEBUG", False)
@@ -179,6 +200,12 @@ NODE_OFFLINE_THRESHOLD_SECONDS = int(
 )
 ALERT_ON_WARNING = _env_bool("ALERT_ON_WARNING", False)
 AUTO_REGISTER_NODES = _env_bool("AUTO_REGISTER_NODES", False)
+
+# Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
+# el riesgo se evalúa solo con las reglas del backend.
+AI_SERVICE_URL = _env_service_url("AI_SERVICE_URL")
+AI_SERVICE_TIMEOUT = _env_positive_float("AI_SERVICE_TIMEOUT", 2.5)
+AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 LOGGING = {
