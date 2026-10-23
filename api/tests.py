@@ -1,7 +1,10 @@
+import json
 import logging
 import os
 from datetime import timedelta
 from unittest.mock import patch
+
+import requests
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
@@ -18,6 +21,7 @@ from config.settings import _env_positive_float, _env_service_url
 
 from .exceptions import api_exception_handler
 from .models import Alert, Node, RiskAssessment, SensorReading
+from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
 
@@ -895,3 +899,184 @@ class RiskAssessmentAIFieldsTests(TestCase):
         self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.OK)
         self.assertEqual(assessment.ai_risk_level, RiskAssessment.RiskLevel.WARNING)
         self.assertEqual(assessment.ai_probabilities, probabilities)
+
+
+AI_TEST_URL = "http://ia.test"
+
+
+def ai_response(status_code, body=None, raw=None):
+    response = requests.Response()
+    response.status_code = status_code
+    content = raw if raw is not None else json.dumps(body if body is not None else {})
+    response._content = content.encode("utf-8")
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+def ai_success_body(**overrides):
+    body = {
+        "status": "ok",
+        "contract_version": "1.0",
+        "node_id": "AI-NODE",
+        "model_version": "pyroguard-rf-1.0.0",
+        "model_prediction": "FIRE",
+        "risk_level": "FIRE",
+        "risk_probability": 0.97,
+        "probabilities": {"NORMAL": 0.03, "WARNING": 0.07, "FIRE": 0.9},
+        "safety_rules": {"rule": "FIRE_CORROBORATED", "explanation": "Señales concordantes."},
+    }
+    body.update(overrides)
+    return body
+
+
+@override_settings(AI_SERVICE_URL=AI_TEST_URL, AI_SERVICE_TIMEOUT=2.5, AI_API_KEY="")
+class AIClientTests(SimpleTestCase):
+    def setUp(self):
+        self.reading = SensorReading(
+            node=Node(node_id="AI-NODE"),
+            temperature=48,
+            humidity=10,
+            smoke=320,
+            gas=None,
+            flame=True,
+            timestamp=timezone.now(),
+        )
+
+    def predict_with(self, response=None, side_effect=None):
+        with patch("api.services.ai_client.requests.post") as post:
+            post.return_value = response
+            post.side_effect = side_effect
+            return request_prediction(self.reading), post
+
+    @override_settings(AI_SERVICE_URL="")
+    def test_disabled_without_service_url(self):
+        prediction, post = self.predict_with(ai_response(200, ai_success_body()))
+
+        self.assertEqual(prediction, AIPrediction(status=RiskAssessment.AIStatus.DISABLED))
+        post.assert_not_called()
+
+    def test_sends_contract_payload(self):
+        prediction, post = self.predict_with(ai_response(200, ai_success_body()))
+
+        self.assertTrue(prediction.ok)
+        post.assert_called_once_with(
+            f"{AI_TEST_URL}/predict",
+            json=build_payload(self.reading),
+            headers={},
+            timeout=2.5,
+        )
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["node_id"], "AI-NODE")
+        self.assertIsNone(payload["gas"])
+        self.assertIs(payload["flame"], True)
+        self.assertEqual(payload["timestamp"], self.reading.timestamp.isoformat())
+
+    @override_settings(AI_API_KEY="clave-ia")
+    def test_sends_api_key_header(self):
+        _, post = self.predict_with(ai_response(200, ai_success_body()))
+
+        self.assertEqual(post.call_args.kwargs["headers"], {"X-AI-API-Key": "clave-ia"})
+
+    def test_parses_successful_prediction(self):
+        prediction, _ = self.predict_with(ai_response(200, ai_success_body()))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.OK)
+        self.assertEqual(prediction.risk_level, "FIRE")
+        self.assertEqual(prediction.probability, 0.97)
+        self.assertEqual(prediction.probabilities["FIRE"], 0.9)
+        self.assertEqual(prediction.model_version, "pyroguard-rf-1.0.0")
+        self.assertEqual(prediction.explanation, "Señales concordantes.")
+
+    def test_accepts_minor_contract_versions(self):
+        prediction, _ = self.predict_with(
+            ai_response(200, ai_success_body(contract_version="1.3"))
+        )
+
+        self.assertTrue(prediction.ok)
+
+    def test_network_errors_are_unavailable(self):
+        for error in (
+            requests.Timeout("lento"),
+            requests.ConnectionError("rechazada"),
+        ):
+            with self.subTest(error=type(error).__name__):
+                with self.assertLogs("api.ai", level="WARNING"):
+                    prediction, _ = self.predict_with(side_effect=error)
+
+                self.assertEqual(prediction.status, RiskAssessment.AIStatus.UNAVAILABLE)
+
+    def test_server_errors_are_unavailable(self):
+        for status_code, code in ((500, "PREDICTION_FAILED"), (503, "MODEL_UNAVAILABLE")):
+            with self.subTest(status_code=status_code):
+                body = {"status": "error", "code": code, "errors": {"detail": "x"}}
+                with self.assertLogs("api.ai", level="WARNING") as logs:
+                    prediction, _ = self.predict_with(ai_response(status_code, body))
+
+                self.assertEqual(prediction.status, RiskAssessment.AIStatus.UNAVAILABLE)
+                self.assertIn(code, logs.output[0])
+
+    def test_rejected_credentials_are_logged_as_errors(self):
+        body = {"status": "error", "code": "UNAUTHORIZED", "errors": {"detail": "x"}}
+        with self.assertLogs("api.ai", level="ERROR") as logs:
+            prediction, _ = self.predict_with(ai_response(401, body))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.REJECTED)
+        self.assertIn("AI_API_KEY", logs.output[0])
+
+    def test_validation_errors_are_rejected(self):
+        body = {"status": "error", "code": "VALIDATION_ERROR", "errors": {"smoke": ["x"]}}
+        with self.assertLogs("api.ai", level="WARNING"):
+            prediction, _ = self.predict_with(ai_response(422, body))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.REJECTED)
+
+    def test_non_json_response_is_invalid(self):
+        with self.assertLogs("api.ai", level="WARNING"):
+            prediction, _ = self.predict_with(ai_response(200, raw="<html>proxy</html>"))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.INVALID_RESPONSE)
+
+    def test_non_json_error_response_is_handled(self):
+        with self.assertLogs("api.ai", level="WARNING"):
+            prediction, _ = self.predict_with(ai_response(502, raw="Bad Gateway"))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.UNAVAILABLE)
+
+    def test_out_of_contract_bodies_are_invalid(self):
+        invalid_bodies = {
+            "lista": [ai_success_body()],
+            "sin contract_version": {
+                k: v for k, v in ai_success_body().items() if k != "contract_version"
+            },
+            "contrato 2.0": ai_success_body(contract_version="2.0"),
+            "nivel desconocido": ai_success_body(risk_level="UNKNOWN"),
+            "probabilidad > 1": ai_success_body(risk_probability=1.5),
+            "probabilidad texto": ai_success_body(risk_probability="0.9"),
+            "probabilidad booleana": ai_success_body(risk_probability=True),
+            "clase desconocida": ai_success_body(probabilities={"SMOKE": 0.5}),
+            "probabilities no es objeto": ai_success_body(probabilities=[0.1]),
+            "sin model_version": ai_success_body(model_version=""),
+        }
+        for name, body in invalid_bodies.items():
+            with self.subTest(name=name):
+                with self.assertLogs("api.ai", level="WARNING"):
+                    prediction, _ = self.predict_with(ai_response(200, body))
+
+                self.assertEqual(
+                    prediction.status,
+                    RiskAssessment.AIStatus.INVALID_RESPONSE,
+                )
+
+    def test_nan_probability_is_invalid(self):
+        raw = json.dumps(ai_success_body()).replace("0.97", "NaN")
+        with self.assertLogs("api.ai", level="WARNING"):
+            prediction, _ = self.predict_with(ai_response(200, raw=raw))
+
+        self.assertEqual(prediction.status, RiskAssessment.AIStatus.INVALID_RESPONSE)
+
+    def test_long_model_version_is_truncated(self):
+        prediction, _ = self.predict_with(
+            ai_response(200, ai_success_body(model_version="v" * 150))
+        )
+
+        self.assertEqual(len(prediction.model_version), 100)
