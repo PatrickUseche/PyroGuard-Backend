@@ -2,8 +2,10 @@
 
 API Django REST Framework para recibir lecturas IoT, clasificarlas con reglas,
 mantener alertas persistentes y exponer el estado de nodos para el dashboard.
-La evaluación actual es determinista y basada en reglas; la probabilidad de IA
-queda preparada para una futura integración.
+El riesgo se evalúa con reglas deterministas y, si `AI_SERVICE_URL` está
+configurada, con la probabilidad del servicio PyroGuard-IA, que solo puede
+elevar el nivel. Si la IA no responde, la lectura se guarda y se evalúa solo
+con reglas.
 
 ## Arquitectura
 
@@ -135,6 +137,26 @@ minutos en el futuro. Rangos aceptados: temperatura `-50..150`, humedad
 `GET /api/readings/` devuelve siempre una lista JSON plana, incluso sin
 resultados (`[]`). `range` acepta `24h` o `7d`; `limit` va de 1 a 500 y por
 defecto es 20; `order` acepta `asc` o `desc` y por defecto es `desc`.
+
+Cada lectura incluye `risk_level`, la decisión final del backend, y `ai`, el
+resultado de PyroGuard-IA usado como evidencia (`null` si la lectura aún no
+tiene evaluación):
+
+```json
+"ai": {
+	"status": "OK",
+	"risk_level": "WARNING",
+	"probability": 0.6,
+	"probabilities": {"NORMAL": 0.4, "WARNING": 0.35, "FIRE": 0.25},
+	"model_version": "pyroguard-rf-1.0.0"
+}
+```
+
+`status` puede ser `OK`, `DISABLED` (sin `AI_SERVICE_URL`), `UNAVAILABLE`
+(timeout, conexión o error del servicio), `REJECTED` (credencial o datos
+rechazados) o `INVALID_RESPONSE`. Si no es `OK`, el riesgo se calcula solo con
+reglas y los demás campos de `ai` son `null` o `{}`. La IA puede elevar el nivel
+de riesgo, pero nunca reducir el resultado de las reglas.
 
 ## Reglas de riesgo
 

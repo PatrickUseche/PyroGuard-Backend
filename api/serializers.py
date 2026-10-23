@@ -74,6 +74,7 @@ class SensorReadingSerializer(serializers.ModelSerializer):
         },
     )
     risk_level = serializers.SerializerMethodField()
+    ai = serializers.SerializerMethodField()
 
     class Meta:
         model = SensorReading
@@ -86,6 +87,7 @@ class SensorReadingSerializer(serializers.ModelSerializer):
             "flame",
             "timestamp",
             "risk_level",
+            "ai",
         ]
 
     def validate_node_id(self, value):
@@ -123,6 +125,20 @@ class SensorReadingSerializer(serializers.ModelSerializer):
             return instance.assessment.risk_level
         except RiskAssessment.DoesNotExist:
             return None
+
+    def get_ai(self, instance):
+        try:
+            assessment = instance.assessment
+        except RiskAssessment.DoesNotExist:
+            return None
+        # risk_level de la lectura es la decisión final; esto es solo trazabilidad de la IA.
+        return {
+            "status": assessment.ai_status,
+            "risk_level": assessment.ai_risk_level or None,
+            "probability": assessment.ai_probability,
+            "probabilities": assessment.ai_probabilities,
+            "model_version": assessment.ai_model_version or None,
+        }
 
 
 class AlertSerializer(serializers.ModelSerializer):

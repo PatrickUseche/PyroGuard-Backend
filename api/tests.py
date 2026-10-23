@@ -131,11 +131,13 @@ class ReadingsContractTests(APITestCase):
                 "flame",
                 "timestamp",
                 "risk_level",
+                "ai",
             },
         )
         self.assertEqual(response.data[0]["node_id"], "NODE-001")
         self.assertIsNone(response.data[0]["gas"])
         self.assertIsNone(response.data[0]["risk_level"])
+        self.assertIsNone(response.data[0]["ai"])
 
     @override_settings(INGEST_API_KEY=ingest_api_key)
     def test_post_without_credentials_is_rejected(self):
@@ -1232,3 +1234,83 @@ class AIIngestionTransactionTests(TransactionTestCase):
             observed,
             {"in_atomic_block": False, "reading_committed": True},
         )
+
+
+@override_settings(INGEST_API_KEY="test-ingest-key")
+class AIReadingRepresentationTests(APITestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="AI-API")
+
+    @patch("api.services.ingestion.request_prediction")
+    def post_reading(self, prediction, predict):
+        predict.return_value = prediction
+        return self.client.post(
+            reverse("receive_reading"),
+            {
+                "node_id": self.node.node_id,
+                "temperature": 22,
+                "humidity": 60,
+                "smoke": 10,
+                "flame": False,
+                "timestamp": timezone.now().isoformat(),
+            },
+            format="json",
+            HTTP_X_API_KEY="test-ingest-key",
+        )
+
+    def test_post_response_includes_ai_result(self):
+        response = self.post_reading(ai_prediction(risk_level="WARNING", probability=0.6))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["risk_level"], "WARNING")
+        self.assertEqual(
+            response.data["reading"]["ai"],
+            {
+                "status": "OK",
+                "risk_level": "WARNING",
+                "probability": 0.6,
+                "probabilities": {"NORMAL": 0.03, "WARNING": 0.07, "FIRE": 0.9},
+                "model_version": "pyroguard-rf-1.0.0",
+            },
+        )
+
+    def test_unavailable_ai_is_reported_with_empty_values(self):
+        response = self.post_reading(
+            AIPrediction(status=RiskAssessment.AIStatus.UNAVAILABLE)
+        )
+
+        self.assertEqual(
+            response.data["reading"]["ai"],
+            {
+                "status": "UNAVAILABLE",
+                "risk_level": None,
+                "probability": None,
+                "probabilities": {},
+                "model_version": None,
+            },
+        )
+
+    def test_reading_lists_include_ai_result(self):
+        self.post_reading(ai_prediction(risk_level="WARNING", probability=0.6))
+
+        for url in (
+            reverse("receive_reading"),
+            reverse("node_readings", args=[self.node.node_id]),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+
+                self.assertEqual(response.data[0]["ai"]["status"], "OK")
+                self.assertEqual(response.data[0]["ai"]["probability"], 0.6)
+
+        summary = self.client.get(reverse("dashboard_summary"))
+        self.assertEqual(summary.data["latest_readings"][0]["ai"]["status"], "OK")
+
+    def test_reading_list_does_not_query_per_reading(self):
+        for _ in range(5):
+            self.post_reading(ai_prediction(risk_level="WARNING", probability=0.6))
+
+        with self.assertNumQueries(1):
+            response = self.client.get(reverse("receive_reading"))
+
+        self.assertEqual(len(response.data), 5)
