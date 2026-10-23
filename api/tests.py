@@ -1314,3 +1314,135 @@ class AIReadingRepresentationTests(APITestCase):
             response = self.client.get(reverse("receive_reading"))
 
         self.assertEqual(len(response.data), 5)
+
+
+@override_settings(
+    INGEST_API_KEY="test-ingest-key",
+    AI_SERVICE_URL=AI_TEST_URL,
+    AI_SERVICE_TIMEOUT=2.5,
+    AI_API_KEY="clave-ia",
+)
+class AIIngestionResilienceTests(APITestCase):
+    """Recorre endpoint, ingesta y cliente real simulando solo la red."""
+
+    normal_values = {"temperature": 22, "humidity": 60, "smoke": 10, "flame": False}
+    fire_values = {"temperature": 55, "humidity": 20, "smoke": 80, "flame": True}
+
+    failures = {
+        "timeout": (requests.Timeout("lento"), RiskAssessment.AIStatus.UNAVAILABLE),
+        "conexión rechazada": (
+            requests.ConnectionError("rechazada"),
+            RiskAssessment.AIStatus.UNAVAILABLE,
+        ),
+        "HTTP 500": (
+            ai_response(500, {"status": "error", "code": "PREDICTION_FAILED"}),
+            RiskAssessment.AIStatus.UNAVAILABLE,
+        ),
+        "HTTP 503": (
+            ai_response(503, {"status": "error", "code": "MODEL_UNAVAILABLE"}),
+            RiskAssessment.AIStatus.UNAVAILABLE,
+        ),
+        "HTTP 401": (
+            ai_response(401, {"status": "error", "code": "UNAUTHORIZED"}),
+            RiskAssessment.AIStatus.REJECTED,
+        ),
+        "HTTP 422": (
+            ai_response(422, {"status": "error", "code": "VALIDATION_ERROR"}),
+            RiskAssessment.AIStatus.REJECTED,
+        ),
+        "HTML de un proxy": (
+            ai_response(200, raw="<html>proxy</html>"),
+            RiskAssessment.AIStatus.INVALID_RESPONSE,
+        ),
+        "contrato incompatible": (
+            ai_response(200, ai_success_body(contract_version="2.0")),
+            RiskAssessment.AIStatus.INVALID_RESPONSE,
+        ),
+    }
+
+    def setUp(self):
+        self.node = Node.objects.create(node_id="AI-RESILIENCE")
+
+    def post_reading(self, ai_outcome, **values):
+        payload = {
+            "node_id": self.node.node_id,
+            "timestamp": timezone.now().isoformat(),
+            **values,
+        }
+        with patch("api.services.ai_client.requests.post") as post:
+            if isinstance(ai_outcome, Exception):
+                post.side_effect = ai_outcome
+            else:
+                post.return_value = ai_outcome
+            with self.assertNoLogs("api.readings", level="ERROR"):
+                response = self.client.post(
+                    reverse("receive_reading"),
+                    payload,
+                    format="json",
+                    HTTP_X_API_KEY="test-ingest-key",
+                )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        return response, post
+
+    def test_ai_failures_keep_reading_and_use_rules(self):
+        for name, (outcome, expected_status) in self.failures.items():
+            with self.subTest(name=name):
+                readings_before = SensorReading.objects.count()
+                with self.assertLogs("api.ai", level="WARNING"):
+                    response, _ = self.post_reading(outcome, **self.normal_values)
+
+                self.assertEqual(SensorReading.objects.count(), readings_before + 1)
+                self.assertEqual(response.data["risk_level"], "NORMAL")
+                self.assertIsNone(response.data["alert_id"])
+                self.assertEqual(response.data["reading"]["ai"]["status"], expected_status)
+                self.assertIsNone(response.data["reading"]["ai"]["probability"])
+
+        self.assertFalse(Alert.objects.exists())
+
+    def test_ai_failure_never_suppresses_fire_alert(self):
+        for name, (outcome, expected_status) in self.failures.items():
+            with self.subTest(name=name):
+                Alert.objects.all().delete()
+                with self.assertLogs("api.ai", level="WARNING"):
+                    response, _ = self.post_reading(outcome, **self.fire_values)
+
+                self.assertEqual(response.data["risk_level"], "FIRE")
+                self.assertEqual(response.data["reading"]["ai"]["status"], expected_status)
+                alert = Alert.objects.get(pk=response.data["alert_id"])
+                self.assertEqual(alert.level, Alert.Level.FIRE)
+
+    def test_ai_probability_raises_to_fire_and_creates_alert(self):
+        warning_values = {**self.normal_values, "temperature": 45}
+
+        response, post = self.post_reading(
+            ai_response(200, ai_success_body(risk_probability=0.9)),
+            **warning_values,
+        )
+
+        self.assertEqual(response.data["risk_level"], "FIRE")
+        self.assertEqual(response.data["reading"]["ai"]["status"], "OK")
+        self.assertEqual(Alert.objects.get().level, Alert.Level.FIRE)
+        self.assertEqual(post.call_args.kwargs["headers"], {"X-AI-API-Key": "clave-ia"})
+        self.assertEqual(post.call_args.kwargs["timeout"], 2.5)
+
+    def test_saved_reading_is_sent_according_to_contract(self):
+        _, post = self.post_reading(
+            ai_response(200, ai_success_body(risk_level="NORMAL", risk_probability=0.0)),
+            **{**self.normal_values, "flame": 1},
+        )
+
+        sent = post.call_args.kwargs["json"]
+        reading = SensorReading.objects.get()
+        self.assertEqual(post.call_args.args[0], f"{AI_TEST_URL}/predict")
+        self.assertEqual(
+            sent,
+            {
+                "node_id": "AI-RESILIENCE",
+                "temperature": 22.0,
+                "humidity": 60.0,
+                "smoke": 10.0,
+                "gas": None,
+                "flame": True,
+                "timestamp": reading.timestamp.isoformat(),
+            },
+        )
