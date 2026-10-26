@@ -60,6 +60,9 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
+| `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
+| `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
+| `NUM_PROXIES` | Saltos de proxy delante de la app, para identificar la IP del cliente | Vacío |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
 | `EXTRA_CORS_ORIGINS` | Orígenes CORS adicionales separados por comas | Vacío |
 
@@ -114,6 +117,21 @@ curl http://localhost:8000/api/nodes/SIM-001/status/
 curl "http://localhost:8000/api/readings/?node_id=SIM-001&range=24h&limit=50&order=desc"
 curl http://localhost:8000/api/dashboard/summary/
 ```
+
+## Límite de peticiones
+
+Cada IP tiene dos cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
+compartido por todos los endpoints de lectura) y la ingesta POST de lecturas
+(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red). Al
+superarlos la API responde HTTP 429 con la cabecera `Retry-After`. Las
+peticiones sin credenciales válidas se rechazan antes de contar contra el cupo
+de ingesta.
+
+Los contadores viven en la memoria de cada proceso, así que con varios workers
+de gunicorn el límite efectivo se multiplica por el número de workers. Detrás
+de un proxy (Render), define `NUM_PROXIES` con el número de saltos para que se
+cuente la IP real del cliente; sin valor se usa todo `X-Forwarded-For`, que un
+cliente puede falsear para esquivar el límite.
 
 ## Contrato de lectura
 

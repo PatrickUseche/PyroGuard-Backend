@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -43,6 +44,30 @@ def _env_positive_float(name, default):
         raise ImproperlyConfigured(f"{name} debe ser un número.") from None
     if not math.isfinite(parsed_value) or parsed_value <= 0:
         raise ImproperlyConfigured(f"{name} debe ser un número mayor que 0.")
+    return parsed_value
+
+
+def _env_rate(name, default):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    if not re.fullmatch(r"[1-9]\d*/(sec|min|hour|day)", value):
+        raise ImproperlyConfigured(
+            f"{name} debe tener el formato N/sec, N/min, N/hour o N/day."
+        )
+    return value
+
+
+def _env_non_negative_int(name):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return None
+    try:
+        parsed_value = int(value)
+    except ValueError:
+        raise ImproperlyConfigured(f"{name} debe ser un entero.") from None
+    if parsed_value < 0:
+        raise ImproperlyConfigured(f"{name} no puede ser negativo.")
     return parsed_value
 
 
@@ -192,6 +217,15 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "EXCEPTION_HANDLER": "api.exceptions.api_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "api.throttles.ReadThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "read": _env_rate("THROTTLE_READ_RATE", "120/min"),
+        "ingest": _env_rate("THROTTLE_INGEST_RATE", "300/min"),
+    },
+    # Saltos de proxy delante de la app; sin valor, DRF toma todo X-Forwarded-For.
+    "NUM_PROXIES": _env_non_negative_int("NUM_PROXIES"),
 }
 
 INGEST_API_KEY = os.getenv("INGEST_API_KEY", "")

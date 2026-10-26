@@ -19,6 +19,7 @@ from .permissions import IsAuthenticatedOrIngestAPIKey
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
+from .throttles import IngestThrottle, ReadThrottle
 from .services.reading_queries import filter_readings, parse_datetime_parameter
 
 
@@ -65,6 +66,7 @@ class DashboardSummaryView(APIView):
 
 class ReceiveMeasurementView(APIView):
     permission_classes = [IsAuthenticatedOrIngestAPIKey]
+    throttle_classes = [ReadThrottle, IngestThrottle]
 
     def post(self, request):
         serializer = SensorReadingSerializer(data=request.data)
