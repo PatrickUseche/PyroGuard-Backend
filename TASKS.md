@@ -49,7 +49,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(structures): caché LRU con diccionario y lista doblemente enlazada [2.8]
 - [x] test(structures): pruebas del LRU (expulsión, orden de uso, capacidad 1) [2.9]
 - [x] feat(structures): cola FIFO con nodos enlazados [2.10]
-- [ ] test(structures): pruebas de la cola FIFO [2.11]
+- [x] test(structures): pruebas de la cola FIFO [2.11]
 - [ ] feat(structures): montículo binario mínimo con función de prioridad configurable [2.12]
 - [ ] test(structures): pruebas del montículo (orden, empates, vaciado, top-K) [2.13]
 - [ ] feat(structures): trie para búsqueda por prefijo [2.14]
