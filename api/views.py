@@ -5,17 +5,13 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ParseError
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
-)
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from .models import Alert, Node, SensorReading
-from .permissions import IsAuthenticatedOrIngestAPIKey
+from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
@@ -29,7 +25,7 @@ logger = logging.getLogger("api.readings")
 class NodeViewSet(ModelViewSet):
     queryset = Node.objects.all()
     serializer_class = NodeSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrPublicRead]
     lookup_field = "node_id"
     lookup_url_kwarg = "node_id"
 
@@ -38,14 +34,14 @@ class NodeViewSet(ModelViewSet):
 
 
 class NodeStatusView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request, node_id):
         return Response(get_node_status(node_id))
 
 
 class NodeReadingsView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request, node_id):
         node = get_object_or_404(Node, node_id=node_id)
@@ -58,7 +54,7 @@ class NodeReadingsView(APIView):
 
 
 class DashboardSummaryView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request):
         return Response(get_dashboard_summary())
@@ -104,7 +100,7 @@ class ReceiveMeasurementView(APIView):
 
 
 class AlertListView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request):
         alerts = Alert.objects.select_related("node", "reading")
@@ -138,7 +134,7 @@ class AlertListView(APIView):
 
 
 class ActiveAlertListView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request):
         alerts = Alert.objects.filter(
@@ -149,7 +145,7 @@ class ActiveAlertListView(APIView):
 
 
 class AlertDetailView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrPublicRead]
 
     def get(self, request, alert_id):
         alert = get_object_or_404(

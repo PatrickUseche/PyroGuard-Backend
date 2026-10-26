@@ -60,6 +60,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
+| `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
 | `NUM_PROXIES` | Saltos de proxy delante de la app, para identificar la IP del cliente | Vacío |
@@ -71,8 +72,9 @@ por `.gitignore`; `.env.example` contiene nombres de variables y placeholders.
 
 ## Endpoints
 
-La base común es `http://localhost:8000/api`. Las consultas GET son públicas.
-Las escrituras de nodos y transiciones de alertas requieren autenticación DRF.
+La base común es `http://localhost:8000/api`. Las consultas GET son públicas por
+defecto (ver «Acceso de lectura»). Las escrituras de nodos y transiciones de
+alertas requieren autenticación DRF.
 La ingesta POST requiere `X-API-Key`, incluso si el cliente también tiene sesión
 o token; con `DEBUG=True` y `INGEST_API_KEY` vacía se permite para desarrollo y
 se registra una advertencia.
@@ -117,6 +119,19 @@ curl http://localhost:8000/api/nodes/SIM-001/status/
 curl "http://localhost:8000/api/readings/?node_id=SIM-001&range=24h&limit=50&order=desc"
 curl http://localhost:8000/api/dashboard/summary/
 ```
+
+## Acceso de lectura
+
+| Endpoint | Lectura (GET) | Escritura |
+| --- | --- | --- |
+| `/readings/`, `/dashboard/summary/`, `/nodes/…`, `/alerts/…` | Pública | Nodos y transiciones de alertas: token. Lecturas: `X-API-Key` |
+| `/auth/login/` | — | Siempre abierto, para poder obtener el token |
+
+Hoy son públicas porque el dashboard aún no tiene inicio de sesión. Con
+`PUBLIC_READ_ACCESS=False` todas las consultas GET responden HTTP 401 sin
+`Authorization: Token …`, sin tocar código. La ingesta con `X-API-Key` y el login
+no cambian. Las lecturas muestran estado de nodos y alertas, por lo que conviene
+cerrarlas en cuanto el frontend pueda enviar el token.
 
 ## Límite de peticiones
 

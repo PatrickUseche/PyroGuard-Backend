@@ -12,7 +12,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 ## Fase 1 — Seguridad y robustez
 
 - [x] feat(api): límite de peticiones (throttling de DRF) distinto para las consultas GET públicas y para la ingesta [1.1] (contadores por proceso; en Render falta definir `NUM_PROXIES`)
-- [ ] refactor(api): decidir y documentar qué endpoints GET siguen siendo públicos y cuáles exigen autenticación [1.2]
+- [x] refactor(api): decidir y documentar qué endpoints GET siguen siendo públicos y cuáles exigen autenticación [1.2] (siguen públicos por defecto; `PUBLIC_READ_ACCESS=False` los cierra cuando el frontend tenga login)
 - [ ] feat(api): paginación real en `/readings/` y `/alerts/` (hoy son listas planas con `limit` máximo de 500) [1.3]
 - [ ] test(api): pruebas del throttling, de los permisos de lectura y de la paginación [1.4]
 
