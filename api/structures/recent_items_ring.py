@@ -21,8 +21,8 @@ class RecentItemsRing:
         oldest() / newest() -- O(1)
         buffer[i] -- O(1)
         iter(buffer) / list(buffer) -- O(n)
-        clear() -- O(k)
-        espacio -- O(k), fijo desde que se crea
+        RecentItemsRing(k) / clear() -- O(k), reservan o limpian las k posiciones
+        espacio -- O(k), fijo desde que se crea (no crece con lo que se agrega)
     """
 
     NOTHING_EVICTED = _NothingEvicted()

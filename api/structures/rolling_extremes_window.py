@@ -49,7 +49,13 @@ class RollingExtremesWindow:
         push(value) -- O(1) amortizado
         maximum / minimum -- O(1)
         recalcular recorriendo la ventana -- O(w) por consulta (lo que se evita)
-        espacio -- O(w) en el peor caso
+        espacio -- O(w) en el peor caso (valores ya ordenados)
+
+    Por qué es O(1) amortizado: cada valor se agrega una vez y se saca a lo sumo
+    una vez de cada una de las dos colas (máximos y mínimos), así que ``n``
+    inserciones hacen a lo sumo ``4n`` operaciones de cola en total. La
+    compactación de la lista interna cuesta O(w), pero solo ocurre después de
+    haber descartado al menos la mitad de lo guardado.
     """
 
     def __init__(self, size):

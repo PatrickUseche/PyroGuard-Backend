@@ -10,12 +10,14 @@ class LeastRecentlyUsedCache:
     permite moverlo al frente o expulsar el del final también en O(1); con solo
     uno de los dos, una de esas operaciones costaría O(n).
 
-    Complejidad (``k`` = capacidad):
-        get(key) -- O(1), cuenta como uso
-        put(key, value) -- O(1), expulsa el menos usado si está llena
-        peek(key) / key in cache -- O(1), no cuentan como uso
-        discard(key) -- O(1)
-        keys() / items() -- O(n)
+    Complejidad (``k`` = capacidad). Las operaciones por clave son O(1) *en
+    promedio*: dependen de un diccionario (tabla hash), cuyo peor caso es O(n)
+    si muchas claves colisionan. El reordenamiento de la lista es O(1) siempre.
+        get(key) -- O(1) promedio, cuenta como uso
+        put(key, value) -- O(1) promedio, expulsa el menos usado si está llena
+        peek(key) / key in cache -- O(1) promedio, no cuentan como uso
+        discard(key) -- O(1) promedio
+        keys() / items() / clear() -- O(n)
         espacio -- O(k)
     """
 
