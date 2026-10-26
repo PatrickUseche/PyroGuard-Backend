@@ -162,6 +162,6 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 ## Fase 8 — Despliegue
 
 - [ ] docs(deploy): documentar `AI_SERVICE_URL`, `AI_API_KEY` y los timeouts en Render [8.1] (necesita la IA desplegada, ver IA [3.4])
-- [ ] chore(deploy): ejecutar las migraciones en un paso de release explícito [8.2]
+- [x] chore(deploy): ejecutar las migraciones en un paso de release explícito [8.2] (en el build command de Render y en el `Procfile`; Render obedece el panel, no el `Procfile`)
 - [ ] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3]
 - [ ] docs(deploy): lista de comprobación previa al despliegue [8.4]
