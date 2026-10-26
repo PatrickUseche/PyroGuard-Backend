@@ -30,7 +30,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - [x] test(api): pruebas de offset, total y límites inválidos de la paginación [1.8]
 - [x] docs(api): documentar `offset` y `X-Total-Count` en el README [1.9]
 - [x] feat(auth): límite de intentos en `/auth/login/` (ámbito de throttling propio) [1.10]
-- [ ] test(auth): pruebas del límite de intentos de login [1.11]
+- [x] test(auth): pruebas del límite de intentos de login [1.11]
 
 ## Fase 2 — Estructuras de datos propias (`api/structures/`)
 

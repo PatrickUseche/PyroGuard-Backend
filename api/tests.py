@@ -1658,6 +1658,58 @@ class ThrottlingTests(APITestCase):
             [status.HTTP_401_UNAUTHORIZED] * 3,
         )
 
+    def login(self, password="mala"):
+        return self.client.post(
+            reverse("api_token_auth"),
+            {"username": "operador", "password": password},
+            format="json",
+        )
+
+    def test_login_attempts_are_limited_per_ip(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="3/min"):
+            statuses = [self.login().status_code for _ in range(4)]
+
+        self.assertEqual(statuses, [400, 400, 400, 429])
+
+    def test_correct_password_is_also_blocked_once_the_limit_is_reached(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="2/min"):
+            self.login()
+            self.login()
+            response = self.login(password="buena")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreater(int(response["Retry-After"]), 0)
+
+    def test_login_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", login="5/min"):
+            for _ in range(3):
+                self.login()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_exhausted_login_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", login="1/min"):
+            self.login()
+            blocked = self.login()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_login_still_returns_a_token_within_the_limit(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="3/min"):
+            response = self.login(password="buena")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
     def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
