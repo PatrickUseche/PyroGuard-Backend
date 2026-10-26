@@ -8,6 +8,7 @@ from unittest.mock import patch
 import requests
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.test import TestCase, TransactionTestCase, override_settings
@@ -18,9 +19,15 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
+from rest_framework.throttling import SimpleRateThrottle
 
 from config import settings as settings_module
-from config.settings import _env_positive_float, _env_service_url
+from config.settings import (
+    _env_non_negative_int,
+    _env_positive_float,
+    _env_rate,
+    _env_service_url,
+)
 
 from .exceptions import api_exception_handler
 from .models import Alert, Node, RiskAssessment, SensorReading
@@ -28,6 +35,21 @@ from .serializers import SensorReadingSerializer
 from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
+
+
+_unlimited_rates = patch.object(
+    SimpleRateThrottle, "THROTTLE_RATES", {"read": None, "ingest": None}
+)
+
+
+def setUpModule():
+    # Los límites reales se prueban en ThrottlingTests; el resto de la suite
+    # no debe toparse con ellos porque comparten la caché de la IP de pruebas.
+    _unlimited_rates.start()
+
+
+def tearDownModule():
+    _unlimited_rates.stop()
 
 
 class RiskRulesTests(SimpleTestCase):
@@ -1542,3 +1564,138 @@ class AIContractExamplesTests(TestCase):
                 self.assertEqual(prediction.status, expected_status)
                 if status_code != 401:
                     self.assertIn(contract_example(name)["code"], logs.output[0])
+
+
+class ThrottlingTests(APITestCase):
+    ingest_api_key = "test-ingest-key"
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.node = Node.objects.create(node_id="NODE-001")
+
+    def limit(self, read="1000/min", ingest="1000/min"):
+        return patch.object(
+            SimpleRateThrottle, "THROTTLE_RATES", {"read": read, "ingest": ingest}
+        )
+
+    def post_reading(self):
+        return self.client.post(
+            reverse("receive_reading"),
+            {},
+            format="json",
+            HTTP_X_API_KEY=self.ingest_api_key,
+        )
+
+    def test_read_requests_are_limited_per_ip(self):
+        with self.limit(read="3/min"):
+            statuses = [
+                self.client.get(reverse("dashboard_summary")).status_code
+                for _ in range(4)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 200, 429])
+
+    def test_throttled_response_tells_when_to_retry(self):
+        with self.limit(read="1/min"):
+            self.client.get(reverse("dashboard_summary"))
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreater(int(response["Retry-After"]), 0)
+
+    def test_read_limit_is_shared_by_all_get_endpoints(self):
+        with self.limit(read="2/min"):
+            first = self.client.get(reverse("dashboard_summary"))
+            second = self.client.get(reverse("receive_reading"))
+            third = self.client.get(reverse("alert_list"))
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(third.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_ingest_requests_are_limited_per_ip(self):
+        with self.limit(ingest="2/min"):
+            statuses = [self.post_reading().status_code for _ in range(3)]
+
+        self.assertEqual(statuses, [400, 400, 429])
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_ingest_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", ingest="5/min"):
+            for _ in range(3):
+                self.post_reading()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_exhausted_ingest_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", ingest="1/min"):
+            self.post_reading()
+            blocked = self.post_reading()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_requests_without_valid_key_are_rejected_before_counting(self):
+        with override_settings(INGEST_API_KEY=self.ingest_api_key):
+            with self.limit(ingest="1/min"):
+                responses = [
+                    self.client.post(reverse("receive_reading"), {}, format="json")
+                    for _ in range(3)
+                ]
+
+        self.assertEqual(
+            [response.status_code for response in responses],
+            [status.HTTP_401_UNAUTHORIZED] * 3,
+        )
+
+    def test_settings_define_both_scopes(self):
+        rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+
+        self.assertEqual(set(rates), {"read", "ingest"})
+        self.assertIn(
+            "api.throttles.ReadThrottle",
+            settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],
+        )
+
+
+class ThrottleSettingsTests(SimpleTestCase):
+    def test_rate_uses_default_when_missing(self):
+        with patch.dict(os.environ, {"THROTTLE_READ_RATE": ""}):
+            self.assertEqual(_env_rate("THROTTLE_READ_RATE", "120/min"), "120/min")
+
+    def test_rate_is_parsed(self):
+        for value in ("5/sec", " 120/min ", "10/hour", "1000/day"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
+                    self.assertEqual(
+                        _env_rate("THROTTLE_READ_RATE", "120/min"), value.strip()
+                    )
+
+    def test_invalid_rate_is_rejected(self):
+        for value in ("abc", "120", "0/min", "-1/min", "10/year", "1.5/min"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_rate("THROTTLE_READ_RATE", "120/min")
+
+    def test_num_proxies_is_optional(self):
+        with patch.dict(os.environ, {"NUM_PROXIES": ""}):
+            self.assertIsNone(_env_non_negative_int("NUM_PROXIES"))
+
+    def test_num_proxies_accepts_zero_and_positive_values(self):
+        for value, expected in (("0", 0), ("1", 1), (" 2 ", 2)):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"NUM_PROXIES": value}):
+                    self.assertEqual(_env_non_negative_int("NUM_PROXIES"), expected)
+
+    def test_invalid_num_proxies_is_rejected(self):
+        for value in ("abc", "-1", "1.5"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"NUM_PROXIES": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_non_negative_int("NUM_PROXIES")
