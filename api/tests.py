@@ -2030,3 +2030,18 @@ class BooleanSettingsTests(SimpleTestCase):
                 with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
                     with self.assertRaisesMessage(ValueError, "PRUEBA_BOOL"):
                         _env_bool("PRUEBA_BOOL", False)
+
+
+class ProcfileTests(SimpleTestCase):
+    def test_procfile_migrates_and_collects_static_before_starting_gunicorn(self):
+        procfile = (Path(settings_module.BASE_DIR) / "Procfile").read_text(
+            encoding="utf-8"
+        )
+
+        migrate = procfile.index("manage.py migrate --noinput")
+        collectstatic = procfile.index("manage.py collectstatic --noinput")
+        gunicorn = procfile.index("gunicorn config.wsgi:application")
+
+        self.assertLess(migrate, collectstatic)
+        self.assertLess(collectstatic, gunicorn)
+        self.assertIn("--bind 0.0.0.0:$PORT", procfile)
