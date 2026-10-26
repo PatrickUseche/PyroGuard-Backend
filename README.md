@@ -315,6 +315,10 @@ modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 4. Configurar `DEBUG=False`, `SECRET_KEY`, `DATABASE_URL`, `INGEST_API_KEY` y
 	 el resto de variables necesarias en el entorno de Render. Agregar dominios
 	 con `EXTRA_ALLOWED_HOSTS` y orígenes con `EXTRA_CORS_ORIGINS` cuando proceda.
+	 Define también `CLIENT_IP_HEADER=CF-Connecting-IP`: sin ella el límite de
+	 peticiones vería a todos los clientes con la IP del proxy de Render. Ajusta
+	 `THROTTLE_READ_RATE`, `THROTTLE_INGEST_RATE` y `THROTTLE_LOGIN_RATE` si hace
+	 falta (ver «Límite de peticiones»).
 5. Las migraciones se aplican en cada despliegue con `migrate --noinput` (en el
 	 build command y en el `Procfile`); son idempotentes. Con una sola instancia no
 	 hay carreras; si algún día hay varias, migra solo desde el build.
