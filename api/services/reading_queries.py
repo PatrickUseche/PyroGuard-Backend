@@ -10,7 +10,10 @@ logger = logging.getLogger("api.readings")
 
 
 def parse_datetime_parameter(value, parameter_name):
-    parsed_value = parse_datetime(value)
+    try:
+        parsed_value = parse_datetime(value)
+    except ValueError:
+        parsed_value = None
     if parsed_value is None:
         raise ParseError(
             f"El parámetro '{parameter_name}' debe tener formato ISO 8601."
@@ -46,12 +49,6 @@ def filter_readings(readings, query_params):
             readings = readings.filter(
                 timestamp__gte=timezone.now() - range_durations[range_value]
             )
-
-        limit = int(query_params.get("limit", "20"))
-        if not 1 <= limit <= 500:
-            raise ParseError("'limit' debe estar entre 1 y 500.")
-    except (TypeError, ValueError):
-        raise ParseError("'limit' debe ser un número entero.")
     except ParseError as error:
         logger.warning("Consulta de lecturas rechazada: %s", error.detail)
         raise
@@ -62,4 +59,4 @@ def filter_readings(readings, query_params):
         raise ParseError("'order' debe ser 'asc' o 'desc'.")
 
     timestamp_order = "timestamp" if order == "asc" else "-timestamp"
-    return readings.order_by(timestamp_order, "pk")[:limit]
+    return readings.order_by(timestamp_order, "pk")
