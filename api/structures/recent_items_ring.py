@@ -1,4 +1,4 @@
-class RingBuffer:
+class RecentItemsRing:
     """Buffer circular de capacidad fija: al llenarse sobrescribe lo más antiguo.
 
     Guarda en un arreglo de tamaño fijo y mueve un índice de cabeza, así que
@@ -76,4 +76,4 @@ class RingBuffer:
         self._size = 0
 
     def __repr__(self):
-        return f"RingBuffer(capacity={self._capacity}, items={list(self)!r})"
+        return f"RecentItemsRing(capacity={self._capacity}, items={list(self)!r})"
