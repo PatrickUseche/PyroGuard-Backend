@@ -1,7 +1,7 @@
 from .bidirectional_chain import BidirectionalChain
 
 
-class LRUCache:
+class LeastRecentlyUsedCache:
     """Caché de capacidad fija que expulsa lo usado hace más tiempo (LRU).
 
     Combina dos estructuras: un diccionario que lleva de la clave a su nodo y
@@ -102,4 +102,4 @@ class LRUCache:
         self._misses = 0
 
     def __repr__(self):
-        return f"LRUCache(capacity={self._capacity}, items={self.items()!r})"
+        return f"LeastRecentlyUsedCache(capacity={self._capacity}, items={self.items()!r})"
