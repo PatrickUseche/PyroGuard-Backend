@@ -65,7 +65,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] feat(structures): filtro de Bloom para detectar duplicados [2.22]
 - [ ] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
 - [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
-- [ ] refactor(structures): renombrar `SlidingWindow` a `RollingExtremesWindow` [2.26]
+- [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
 - [ ] refactor(structures): renombrar `DoublyLinkedList` y `ListNode` a `BidirectionalChain` y `ChainLink` [2.27]
 - [ ] refactor(structures): renombrar `LRUCache` a `LeastRecentlyUsedCache` [2.28]
 - [ ] refactor(structures): renombrar `LinkedQueue` a `FirstInFirstOutQueue` [2.29]

@@ -39,7 +39,7 @@ class _MonotonicQueue:
         return self._items[self._head][1]
 
 
-class SlidingWindow:
+class RollingExtremesWindow:
     """Máximo y mínimo de los últimos ``size`` valores, sin recorrer la ventana.
 
     Cada valor entra y sale de cada cola una sola vez, así que el costo de

@@ -7,7 +7,7 @@ from .structures.linked_list import DoublyLinkedList, ListNode
 from .structures.linked_queue import LinkedQueue
 from .structures.lru_cache import LRUCache
 from .structures.recent_items_ring import RecentItemsRing
-from .structures.sliding_window import SlidingWindow
+from .structures.rolling_extremes_window import RollingExtremesWindow
 
 
 class RecentItemsRingTests(SimpleTestCase):
@@ -151,15 +151,15 @@ def brute_force_extremes(values, size):
     return max(window), min(window)
 
 
-class SlidingWindowTests(SimpleTestCase):
+class RollingExtremesWindowTests(SimpleTestCase):
     def test_size_must_be_a_positive_integer(self):
         for size in (0, -3, 2.5, "4", None, True):
             with self.subTest(size=size):
                 with self.assertRaises(ValueError):
-                    SlidingWindow(size)
+                    RollingExtremesWindow(size)
 
     def test_empty_window_has_no_extremes(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
 
         self.assertTrue(window.is_empty())
         self.assertEqual(len(window), 0)
@@ -169,7 +169,7 @@ class SlidingWindowTests(SimpleTestCase):
             window.minimum
 
     def test_only_numbers_are_accepted(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
 
         for value in ("5", None, True, [1], (2,)):
             with self.subTest(value=value):
@@ -180,7 +180,7 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertTrue(window.is_empty())
 
     def test_single_value_is_both_extremes(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
         window.push(7)
 
         self.assertEqual((window.maximum, window.minimum), (7, 7))
@@ -188,7 +188,7 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertFalse(window.is_full())
 
     def test_old_extreme_leaves_when_it_slides_out(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
         for value in (10, 1, 2):
             window.push(value)
         self.assertEqual((window.maximum, window.minimum), (10, 1))
@@ -200,14 +200,14 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertEqual((window.maximum, window.minimum), (4, 2))
 
     def test_window_of_one_tracks_the_last_value(self):
-        window = SlidingWindow(1)
+        window = RollingExtremesWindow(1)
         for value in (5, 3, 9, -2):
             window.push(value)
 
             self.assertEqual((window.maximum, window.minimum), (value, value))
 
     def test_repeated_values_do_not_expire_early(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
         for value in (5, 5, 5):
             window.push(value)
         window.push(1)  # sale un 5, quedan dos
@@ -220,8 +220,8 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertEqual((window.maximum, window.minimum), (1, 1))
 
     def test_monotonic_sequences(self):
-        increasing = SlidingWindow(4)
-        decreasing = SlidingWindow(4)
+        increasing = RollingExtremesWindow(4)
+        decreasing = RollingExtremesWindow(4)
         for value in range(20):
             increasing.push(value)
             decreasing.push(-value)
@@ -230,14 +230,14 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertEqual((decreasing.maximum, decreasing.minimum), (-16, -19))
 
     def test_floats_and_negatives(self):
-        window = SlidingWindow(2)
+        window = RollingExtremesWindow(2)
         for value in (-1.5, 2.25, -3.0):
             window.push(value)
 
         self.assertEqual((window.maximum, window.minimum), (2.25, -3.0))
 
     def test_len_and_is_full_follow_the_window(self):
-        window = SlidingWindow(3)
+        window = RollingExtremesWindow(3)
         sizes = []
         for value in range(5):
             window.push(value)
@@ -251,7 +251,7 @@ class SlidingWindowTests(SimpleTestCase):
         generator = random.Random(2026)
         for size in (1, 2, 3, 5, 17, 100):
             with self.subTest(size=size):
-                window = SlidingWindow(size)
+                window = RollingExtremesWindow(size)
                 values = []
                 for _ in range(600):
                     value = generator.randint(-50, 50)  # con muchos repetidos
@@ -265,7 +265,7 @@ class SlidingWindowTests(SimpleTestCase):
 
     def test_matches_brute_force_with_floats(self):
         generator = random.Random(7)
-        window = SlidingWindow(8)
+        window = RollingExtremesWindow(8)
         values = []
         for _ in range(300):
             value = round(generator.uniform(-40, 120), 2)
@@ -277,7 +277,7 @@ class SlidingWindowTests(SimpleTestCase):
             )
 
     def test_long_runs_keep_working_after_the_internal_compaction(self):
-        window = SlidingWindow(200)
+        window = RollingExtremesWindow(200)
         values = []
         for index in range(5000):
             value = (index * 37) % 101
