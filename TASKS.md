@@ -44,7 +44,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(structures): pruebas del buffer circular (vacío, lleno, sobrescritura, iteración en orden) [2.3]
 - [x] feat(structures): ventana deslizante con cola monótona para máximo y mínimo en O(1) amortizado [2.4]
 - [x] test(structures): pruebas de la ventana deslizante contra una solución de fuerza bruta [2.5]
-- [ ] feat(structures): lista doblemente enlazada con inserción y borrado en O(1) por nodo [2.6]
+- [x] feat(structures): lista doblemente enlazada con inserción y borrado en O(1) por nodo [2.6]
 - [ ] test(structures): pruebas de la lista doblemente enlazada [2.7]
 - [ ] feat(structures): caché LRU con diccionario y lista doblemente enlazada [2.8]
 - [ ] test(structures): pruebas del LRU (expulsión, orden de uso, capacidad 1) [2.9]
