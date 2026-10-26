@@ -24,6 +24,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from config import settings as settings_module
 from config.settings import (
     _env_bool,
+    _env_header_name,
     _env_non_negative_int,
     _env_positive_float,
     _env_rate,
@@ -2045,3 +2046,115 @@ class ProcfileTests(SimpleTestCase):
         self.assertLess(migrate, collectstatic)
         self.assertLess(collectstatic, gunicorn)
         self.assertIn("--bind 0.0.0.0:$PORT", procfile)
+
+
+@override_settings(CLIENT_IP_HEADER="CF-Connecting-IP")
+class ClientIPThrottlingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def limit(self, read="2/min"):
+        return patch.object(
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": read, "ingest": "1000/min", "login": "1000/min"},
+        )
+
+    def get(self, **headers):
+        return self.client.get(reverse("dashboard_summary"), **headers)
+
+    def test_each_client_ip_has_its_own_quota(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_CF_CONNECTING_IP="203.0.113.1")
+            second = self.get(HTTP_CF_CONNECTING_IP="203.0.113.2")
+            repeated = self.get(HTTP_CF_CONNECTING_IP="203.0.113.1")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(repeated.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_forged_forwarded_for_does_not_escape_the_limit(self):
+        with self.limit(read="2/min"):
+            statuses = [
+                self.get(
+                    HTTP_CF_CONNECTING_IP="203.0.113.1",
+                    HTTP_X_FORWARDED_FOR=f"198.51.100.{index}",
+                ).status_code
+                for index in range(3)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 429])
+
+    def test_ipv6_addresses_are_accepted(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_CF_CONNECTING_IP="2001:db8::1")
+            second = self.get(HTTP_CF_CONNECTING_IP="2001:db8::2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+    def test_invalid_header_value_falls_back_to_the_socket_address(self):
+        with self.limit(read="2/min"):
+            statuses = [
+                self.get(HTTP_CF_CONNECTING_IP=f"no-es-una-ip-{index}").status_code
+                for index in range(3)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 429])
+
+    def test_missing_header_falls_back_to_the_socket_address(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
+            second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_empty_setting_keeps_the_default_forwarded_for_behaviour(self):
+        with override_settings(CLIENT_IP_HEADER=""):
+            with self.limit(read="1/min"):
+                first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
+                second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+    def test_ingest_and_login_quotas_use_the_same_client_ip(self):
+        user_model = get_user_model()
+        user_model.objects.create_user("operador", password="buena")
+        with patch.object(
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": "1000/min", "ingest": "1000/min", "login": "1/min"},
+        ):
+            statuses = [
+                self.client.post(
+                    reverse("api_token_auth"),
+                    {"username": "operador", "password": "mala"},
+                    format="json",
+                    HTTP_CF_CONNECTING_IP=ip,
+                ).status_code
+                for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
+            ]
+
+        self.assertEqual(statuses, [400, 429, 400])
+
+
+class ClientIPSettingsTests(SimpleTestCase):
+    def test_header_is_optional(self):
+        with patch.dict(os.environ, {"CLIENT_IP_HEADER": ""}):
+            self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), "")
+
+    def test_valid_header_names_are_accepted(self):
+        for value in ("CF-Connecting-IP", " True-Client-IP ", "X-Real-IP"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
+                    self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), value.strip())
+
+    def test_invalid_header_names_are_rejected(self):
+        for value in ("CF Connecting IP", "CF_Connecting_IP", "-IP", "IP-", "a:b", "x\ny"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_header_name("CLIENT_IP_HEADER")
