@@ -1792,3 +1792,150 @@ class ReadAccessTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PaginationTests(APITestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="PAGE-NODE")
+        self.other_node = Node.objects.create(node_id="OTHER-NODE")
+        base = timezone.now() - timedelta(hours=1)
+        for index in range(5):
+            SensorReading.objects.create(
+                node=self.node,
+                temperature=20 + index,
+                humidity=50,
+                smoke=0,
+                flame=False,
+                timestamp=base + timedelta(minutes=index),
+            )
+        SensorReading.objects.create(
+            node=self.other_node,
+            temperature=30,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+
+    def temperatures(self, response):
+        return [item["temperature"] for item in response.data]
+
+    def test_offset_and_limit_select_a_page(self):
+        response = self.client.get(
+            reverse("receive_reading"),
+            {"node_id": "PAGE-NODE", "order": "asc", "limit": 2, "offset": 2},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.temperatures(response), [22, 23])
+
+    def test_total_count_ignores_the_page_but_respects_filters(self):
+        response = self.client.get(
+            reverse("receive_reading"), {"node_id": "PAGE-NODE", "limit": 2}
+        )
+
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response["X-Total-Count"], "5")
+
+    def test_total_count_counts_every_node_without_filter(self):
+        response = self.client.get(reverse("receive_reading"))
+
+        self.assertEqual(response["X-Total-Count"], "6")
+
+    def test_node_readings_endpoint_is_paginated_too(self):
+        response = self.client.get(
+            reverse("node_readings", args=["PAGE-NODE"]),
+            {"order": "asc", "limit": 3, "offset": 4},
+        )
+
+        self.assertEqual(self.temperatures(response), [24])
+        self.assertEqual(response["X-Total-Count"], "5")
+
+    def test_offset_past_the_end_returns_an_empty_list_with_total(self):
+        response = self.client.get(reverse("receive_reading"), {"offset": 100})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        self.assertEqual(response["X-Total-Count"], "6")
+
+    def test_default_limit_is_twenty_for_readings(self):
+        node = Node.objects.create(node_id="MANY-NODE")
+        SensorReading.objects.bulk_create(
+            SensorReading(
+                node=node, temperature=20, humidity=50, smoke=0, flame=False
+            )
+            for _ in range(25)
+        )
+
+        response = self.client.get(reverse("receive_reading"), {"node_id": "MANY-NODE"})
+
+        self.assertEqual(len(response.data), 20)
+        self.assertEqual(response["X-Total-Count"], "25")
+
+    def test_invalid_limit_and_offset_are_rejected(self):
+        for name, value in (
+            ("limit", "0"),
+            ("limit", "501"),
+            ("limit", "abc"),
+            ("offset", "-1"),
+            ("offset", "abc"),
+        ):
+            with self.subTest(name=name, value=value):
+                response = self.client.get(reverse("receive_reading"), {name: value})
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(name, str(response.data["errors"]))
+
+    def test_impossible_date_is_reported_as_a_date_error(self):
+        response = self.client.get(
+            reverse("receive_reading"), {"from": "2026-13-45T00:00:00Z"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("from", str(response.data["errors"]))
+        self.assertNotIn("limit", str(response.data["errors"]))
+
+    def test_alerts_are_paginated_with_a_default_of_one_hundred(self):
+        reading = SensorReading.objects.filter(node=self.node).first()
+        Alert.objects.bulk_create(
+            Alert(
+                node=self.node,
+                reading=reading,
+                level=Alert.Level.WARNING,
+                message=f"Alerta {index}",
+            )
+            for index in range(105)
+        )
+
+        default_page = self.client.get(reverse("alert_list"))
+        custom_page = self.client.get(reverse("alert_list"), {"limit": 10, "offset": 100})
+
+        self.assertEqual(len(default_page.data), 100)
+        self.assertEqual(default_page["X-Total-Count"], "105")
+        self.assertEqual(len(custom_page.data), 5)
+
+    def test_alert_total_respects_filters(self):
+        reading = SensorReading.objects.filter(node=self.node).first()
+        Alert.objects.create(
+            node=self.node, reading=reading, level=Alert.Level.FIRE, message="Fuego"
+        )
+        Alert.objects.create(
+            node=self.node, reading=reading, level=Alert.Level.WARNING, message="Aviso"
+        )
+
+        response = self.client.get(reverse("alert_list"), {"level": "FIRE"})
+
+        self.assertEqual(response["X-Total-Count"], "1")
+
+    def test_invalid_alert_limit_is_rejected(self):
+        response = self.client.get(reverse("alert_list"), {"limit": "501"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cors_exposes_the_pagination_header_to_the_frontend(self):
+        response = self.client.get(
+            reverse("receive_reading"), HTTP_ORIGIN="http://localhost:4200"
+        )
+
+        exposed = response["Access-Control-Expose-Headers"]
+        self.assertIn("X-Total-Count", exposed)
+        self.assertIn("Retry-After", exposed)

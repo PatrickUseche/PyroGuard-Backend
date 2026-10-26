@@ -27,7 +27,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - [x] feat(api): paginar `/readings/` y `/nodes/{id}/readings/` con la cabecera `X-Total-Count` [1.5]
 - [x] feat(alerts): paginar `/alerts/` con un límite por defecto de 100 [1.6]
 - [x] feat(config): exponer `X-Total-Count` y `Retry-After` en CORS [1.7]
-- [ ] test(api): pruebas de offset, total y límites inválidos de la paginación [1.8]
+- [x] test(api): pruebas de offset, total y límites inválidos de la paginación [1.8]
 - [ ] docs(api): documentar `offset` y `X-Total-Count` en el README [1.9]
 - [ ] feat(auth): límite de intentos en `/auth/login/` (ámbito de throttling propio) [1.10]
 - [ ] test(auth): pruebas del límite de intentos de login [1.11]
