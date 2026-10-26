@@ -38,7 +38,9 @@ from .services.risk_rules import evaluate_risk
 
 
 _unlimited_rates = patch.object(
-    SimpleRateThrottle, "THROTTLE_RATES", {"read": None, "ingest": None}
+    SimpleRateThrottle,
+    "THROTTLE_RATES",
+    {"read": None, "ingest": None, "login": None},
 )
 
 
@@ -1575,9 +1577,11 @@ class ThrottlingTests(APITestCase):
         self.addCleanup(cache.clear)
         self.node = Node.objects.create(node_id="NODE-001")
 
-    def limit(self, read="1000/min", ingest="1000/min"):
+    def limit(self, read="1000/min", ingest="1000/min", login="1000/min"):
         return patch.object(
-            SimpleRateThrottle, "THROTTLE_RATES", {"read": read, "ingest": ingest}
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": read, "ingest": ingest, "login": login},
         )
 
     def post_reading(self):
@@ -1654,10 +1658,10 @@ class ThrottlingTests(APITestCase):
             [status.HTTP_401_UNAUTHORIZED] * 3,
         )
 
-    def test_settings_define_both_scopes(self):
+    def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
-        self.assertEqual(set(rates), {"read", "ingest"})
+        self.assertEqual(set(rates), {"read", "ingest", "login"})
         self.assertIn(
             "api.throttles.ReadThrottle",
             settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],

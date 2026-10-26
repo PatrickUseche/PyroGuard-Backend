@@ -63,6 +63,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
+| `THROTTLE_LOGIN_RATE` | Límite de intentos de `POST /auth/login/` por IP, con el mismo formato | `10/min` |
 | `NUM_PROXIES` | Saltos de proxy delante de la app, para identificar la IP del cliente | Vacío |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
 | `EXTRA_CORS_ORIGINS` | Orígenes CORS adicionales separados por comas | Vacío |
@@ -135,12 +136,13 @@ cerrarlas en cuanto el frontend pueda enviar el token.
 
 ## Límite de peticiones
 
-Cada IP tiene dos cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
-compartido por todos los endpoints de lectura) y la ingesta POST de lecturas
-(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red). Al
-superarlos la API responde HTTP 429 con la cabecera `Retry-After`. Las
-peticiones sin credenciales válidas se rechazan antes de contar contra el cupo
-de ingesta.
+Cada IP tiene tres cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
+compartido por todos los endpoints de lectura), la ingesta POST de lecturas
+(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red) y
+los intentos de login (`THROTTLE_LOGIN_RATE`, estricto para frenar la fuerza
+bruta de contraseñas). Al superarlos la API responde HTTP 429 con la cabecera
+`Retry-After`. Las peticiones sin credenciales válidas se rechazan antes de
+contar contra el cupo de ingesta.
 
 Los contadores viven en la memoria de cada proceso, así que con varios workers
 de gunicorn el límite efectivo se multiplica por el número de workers. Detrás
