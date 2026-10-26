@@ -1,8 +1,10 @@
 import random
+from collections import OrderedDict
 
 from django.test import SimpleTestCase
 
 from .structures.linked_list import DoublyLinkedList, ListNode
+from .structures.lru_cache import LRUCache
 from .structures.ring_buffer import RingBuffer
 from .structures.sliding_window import SlidingWindow
 
@@ -460,3 +462,169 @@ class DoublyLinkedListTests(SimpleTestCase):
             self.assertEqual(list(linked), reference)
             self.assertEqual(list(linked.reversed()), reference[::-1])
             self.assertEqual(len(linked), len(reference))
+
+
+class LRUCacheTests(SimpleTestCase):
+    def test_capacity_must_be_a_positive_integer(self):
+        for capacity in (0, -1, 2.5, "3", None, True):
+            with self.subTest(capacity=capacity):
+                with self.assertRaises(ValueError):
+                    LRUCache(capacity)
+
+    def test_new_cache_is_empty(self):
+        cache = LRUCache(2)
+
+        self.assertEqual(len(cache), 0)
+        self.assertEqual(cache.keys(), [])
+        self.assertEqual(cache.capacity, 2)
+        self.assertIsNone(cache.get("x"))
+        self.assertEqual(cache.get("x", "por defecto"), "por defecto")
+
+    def test_put_then_get_returns_the_value(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+
+        self.assertEqual(cache.get("a"), 1)
+        self.assertIn("a", cache)
+        self.assertEqual(len(cache), 1)
+
+    def test_full_cache_evicts_the_least_recently_used(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        evicted = cache.put("c", 3)
+
+        self.assertEqual(evicted, ("a", 1))
+        self.assertNotIn("a", cache)
+        self.assertEqual(cache.keys(), ["c", "b"])
+
+    def test_get_makes_an_entry_recent_so_another_is_evicted(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+        cache.get("a")
+
+        evicted = cache.put("c", 3)
+
+        self.assertEqual(evicted, ("b", 2))
+        self.assertEqual(cache.keys(), ["c", "a"])
+
+    def test_updating_an_existing_key_does_not_evict_and_makes_it_recent(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        self.assertIsNone(cache.put("a", 10))
+
+        self.assertEqual(cache.items(), [("a", 10), ("b", 2)])
+        self.assertEqual(len(cache), 2)
+
+    def test_capacity_one_keeps_only_the_last_entry(self):
+        cache = LRUCache(1)
+
+        self.assertIsNone(cache.put("a", 1))
+        self.assertEqual(cache.put("b", 2), ("a", 1))
+        self.assertEqual(cache.put("c", 3), ("b", 2))
+
+        self.assertEqual(cache.items(), [("c", 3)])
+        self.assertIsNone(cache.get("a"))
+
+    def test_peek_and_contains_do_not_change_the_order(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        self.assertEqual(cache.peek("a"), 1)
+        self.assertIn("a", cache)
+        self.assertEqual(cache.peek("zzz", "no"), "no")
+        evicted = cache.put("c", 3)
+
+        self.assertEqual(evicted, ("a", 1))
+
+    def test_discard_removes_an_entry_and_frees_a_slot(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        self.assertTrue(cache.discard("a"))
+        self.assertFalse(cache.discard("a"))
+        self.assertIsNone(cache.put("c", 3))
+
+        self.assertEqual(cache.keys(), ["c", "b"])
+
+    def test_none_and_falsy_values_are_stored(self):
+        cache = LRUCache(3)
+        cache.put("none", None)
+        cache.put("zero", 0)
+        cache.put("vacio", "")
+
+        self.assertIn("none", cache)
+        self.assertEqual(cache.get("zero", "otro"), 0)
+        self.assertEqual(cache.get("vacio", "otro"), "")
+
+    def test_keys_can_be_any_hashable(self):
+        cache = LRUCache(3)
+        cache.put(("nodo", 1), "a")
+        cache.put(42, "b")
+        cache.put(None, "c")
+
+        self.assertEqual(cache.get(("nodo", 1)), "a")
+        self.assertEqual(cache.get(None), "c")
+        with self.assertRaises(TypeError):
+            cache.put([1, 2], "no hashable")
+
+    def test_hits_and_misses_are_counted_only_by_get(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+
+        cache.get("a")
+        cache.get("a")
+        cache.get("zzz")
+        cache.peek("a")
+        "a" in cache
+
+        self.assertEqual((cache.hits, cache.misses), (2, 1))
+        cache.reset_stats()
+        self.assertEqual((cache.hits, cache.misses), (0, 0))
+
+    def test_clear_empties_the_cache_and_it_can_be_reused(self):
+        cache = LRUCache(2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+
+        cache.clear()
+
+        self.assertEqual(len(cache), 0)
+        self.assertEqual(cache.keys(), [])
+        cache.put("z", 26)
+        self.assertEqual(cache.items(), [("z", 26)])
+
+    def test_matches_a_reference_model_under_random_operations(self):
+        generator = random.Random(2027)
+        capacity = 6
+        cache = LRUCache(capacity)
+        model = OrderedDict()  # el último es el más reciente
+        for step in range(3000):
+            key = generator.randrange(15)
+            operation = generator.choice(("get", "get", "put", "put", "peek", "discard"))
+            if operation == "get":
+                expected = model.get(key)
+                if key in model:
+                    model.move_to_end(key)
+                self.assertEqual(cache.get(key), expected)
+            elif operation == "put":
+                evicted = None
+                if key in model:
+                    model.move_to_end(key)
+                elif len(model) == capacity:
+                    evicted = model.popitem(last=False)
+                model[key] = step
+                self.assertEqual(cache.put(key, step), evicted)
+            elif operation == "peek":
+                self.assertEqual(cache.peek(key), model.get(key))
+            else:
+                self.assertEqual(cache.discard(key), model.pop(key, None) is not None)
+
+            self.assertEqual(cache.keys(), list(reversed(model)))
+            self.assertEqual(len(cache), len(model))
