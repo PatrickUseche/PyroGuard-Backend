@@ -22,7 +22,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 
 - [x] feat(api): límite de peticiones (throttling de DRF) distinto para las consultas GET públicas y para la ingesta [1.1] (contadores por proceso; en Render falta definir `NUM_PROXIES`)
 - [x] refactor(api): decidir y documentar qué endpoints GET siguen siendo públicos y cuáles exigen autenticación [1.2] (siguen públicos por defecto; `PUBLIC_READ_ACCESS=False` los cierra cuando el frontend tenga login)
-- [ ] feat(api): módulo de paginación con `limit` y `offset` validados [1.3]
+- [x] feat(api): módulo de paginación con `limit` y `offset` validados [1.3]
 - [ ] refactor(readings): que `filter_readings` devuelva el queryset sin recortar y la paginación lo recorte [1.4]
 - [ ] feat(api): paginar `/readings/` y `/nodes/{id}/readings/` con la cabecera `X-Total-Count` [1.5]
 - [ ] feat(alerts): paginar `/alerts/` con un límite por defecto de 100 [1.6]
