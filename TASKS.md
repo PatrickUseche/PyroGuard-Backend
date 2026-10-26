@@ -31,6 +31,9 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - [x] docs(api): documentar `offset` y `X-Total-Count` en el README [1.9]
 - [x] feat(auth): límite de intentos en `/auth/login/` (ámbito de throttling propio) [1.10]
 - [x] test(auth): pruebas del límite de intentos de login [1.11]
+- [x] feat(throttling): identificar al cliente por una cabecera de confianza configurable (`CLIENT_IP_HEADER`, p. ej. `CF-Connecting-IP` en Render) en lugar de contar saltos de proxy [1.12]
+- [x] test(throttling): pruebas de la cabecera de IP (cupos por cliente, cabecera falseada o inválida y ajuste vacío) [1.13]
+- [x] docs(throttling): documentar `CLIENT_IP_HEADER` y cuándo usarlo en lugar de `NUM_PROXIES` [1.14]
 
 ## Fase 2 — Estructuras de datos propias (`api/structures/`)
 
@@ -163,7 +166,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 - [ ] docs(deploy): documentar `AI_SERVICE_URL`, `AI_API_KEY` y los timeouts en Render [8.1] (necesita la IA desplegada, ver IA [3.4])
 - [x] chore(deploy): ejecutar las migraciones en un paso de release explícito [8.2] (en el build command de Render y en el `Procfile`; Render obedece el panel, no el `Procfile`)
-- [ ] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3]
+- [x] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3] (se usa `CLIENT_IP_HEADER=CF-Connecting-IP`)
 - [ ] docs(deploy): lista de comprobación previa al despliegue [8.4]
 - [x] test(deploy): el `Procfile` migra y recopila estáticos antes de arrancar gunicorn [8.7]
 - [x] fix(config): tratar una variable booleana vacía como no definida; el build de Render fallaba con `DEBUG` vacía [8.5]
