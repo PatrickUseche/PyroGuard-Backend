@@ -137,7 +137,11 @@ class AlertListView(APIView):
             alerts = alerts.filter(created_at__lte=to_date)
 
         alerts = alerts.order_by("-created_at", "-pk")
-        return Response(AlertSerializer(alerts, many=True).data)
+        page, total = paginate(alerts, request.query_params, default_limit=100)
+        return Response(
+            AlertSerializer(page, many=True).data,
+            headers={TOTAL_COUNT_HEADER: total},
+        )
 
 
 class ActiveAlertListView(APIView):

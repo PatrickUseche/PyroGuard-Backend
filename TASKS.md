@@ -25,7 +25,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - [x] feat(api): módulo de paginación con `limit` y `offset` validados [1.3]
 - [x] refactor(readings): que `filter_readings` devuelva el queryset sin recortar y la paginación lo recorte [1.4]
 - [x] feat(api): paginar `/readings/` y `/nodes/{id}/readings/` con la cabecera `X-Total-Count` [1.5]
-- [ ] feat(alerts): paginar `/alerts/` con un límite por defecto de 100 [1.6]
+- [x] feat(alerts): paginar `/alerts/` con un límite por defecto de 100 [1.6]
 - [ ] feat(config): exponer `X-Total-Count` y `Retry-After` en CORS [1.7]
 - [ ] test(api): pruebas de offset, total y límites inválidos de la paginación [1.8]
 - [ ] docs(api): documentar `offset` y `X-Total-Count` en el README [1.9]
