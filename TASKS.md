@@ -39,7 +39,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 
 Cada estructura: implementación → pruebas. La complejidad de cada operación va en el docstring y en [2.24].
 
-- [ ] feat(structures): paquete `api/structures` con las convenciones y la forma de documentar complejidades [2.1]
+- [x] feat(structures): paquete `api/structures` con las convenciones y la forma de documentar complejidades [2.1]
 - [ ] feat(structures): buffer circular (`RingBuffer`) de capacidad fija con sobrescritura del más antiguo [2.2]
 - [ ] test(structures): pruebas del buffer circular (vacío, lleno, sobrescritura, iteración en orden) [2.3]
 - [ ] feat(structures): ventana deslizante con cola monótona para máximo y mínimo en O(1) amortizado [2.4]
