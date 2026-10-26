@@ -2,6 +2,7 @@ import random
 
 from django.test import SimpleTestCase
 
+from .structures.linked_list import DoublyLinkedList, ListNode
 from .structures.ring_buffer import RingBuffer
 from .structures.sliding_window import SlidingWindow
 
@@ -283,3 +284,179 @@ class SlidingWindowTests(SimpleTestCase):
         self.assertEqual(
             (window.maximum, window.minimum), brute_force_extremes(values, 200)
         )
+
+
+class DoublyLinkedListTests(SimpleTestCase):
+    def build(self, *values):
+        linked = DoublyLinkedList()
+        nodes = [linked.push_back(value) for value in values]
+        return linked, nodes
+
+    def forward_and_backward(self, linked):
+        return list(linked), list(linked.reversed())
+
+    def test_new_list_is_empty(self):
+        linked = DoublyLinkedList()
+
+        self.assertEqual(len(linked), 0)
+        self.assertTrue(linked.is_empty())
+        self.assertEqual(list(linked), [])
+        self.assertEqual(list(linked.reversed()), [])
+
+    def test_empty_list_rejects_reads_and_pops(self):
+        linked = DoublyLinkedList()
+
+        for operation in (
+            linked.pop_front,
+            linked.pop_back,
+            linked.front,
+            linked.back,
+            linked.front_node,
+            linked.back_node,
+        ):
+            with self.subTest(operation=operation.__name__):
+                with self.assertRaises(IndexError):
+                    operation()
+
+    def test_push_front_and_push_back_keep_order_in_both_directions(self):
+        linked = DoublyLinkedList()
+        linked.push_back(2)
+        linked.push_back(3)
+        linked.push_front(1)
+        linked.push_front(0)
+
+        forward, backward = self.forward_and_backward(linked)
+        self.assertEqual(forward, [0, 1, 2, 3])
+        self.assertEqual(backward, [3, 2, 1, 0])
+        self.assertEqual((linked.front(), linked.back()), (0, 3))
+        self.assertEqual(len(linked), 4)
+
+    def test_pushes_return_the_created_node(self):
+        linked = DoublyLinkedList()
+
+        node = linked.push_back("a")
+
+        self.assertIsInstance(node, ListNode)
+        self.assertEqual(node.value, "a")
+        self.assertIs(linked.front_node(), node)
+        self.assertIs(linked.back_node(), node)
+
+    def test_pops_remove_from_each_end(self):
+        linked, _ = self.build(1, 2, 3, 4)
+
+        self.assertEqual(linked.pop_front(), 1)
+        self.assertEqual(linked.pop_back(), 4)
+
+        self.assertEqual(self.forward_and_backward(linked), ([2, 3], [3, 2]))
+
+    def test_single_element_list_behaves_at_both_ends(self):
+        linked, _ = self.build("solo")
+
+        self.assertEqual((linked.front(), linked.back()), ("solo", "solo"))
+        self.assertEqual(linked.pop_back(), "solo")
+        self.assertTrue(linked.is_empty())
+        linked.push_front("otra")
+        self.assertEqual(linked.pop_front(), "otra")
+        self.assertTrue(linked.is_empty())
+
+    def test_remove_from_the_middle_and_the_ends(self):
+        linked, (first, middle, last) = self.build("a", "b", "c")
+
+        self.assertEqual(linked.remove(middle), "b")
+        self.assertEqual(self.forward_and_backward(linked), (["a", "c"], ["c", "a"]))
+        self.assertEqual(linked.remove(first), "a")
+        self.assertEqual(linked.remove(last), "c")
+        self.assertTrue(linked.is_empty())
+
+    def test_removed_node_cannot_be_used_again(self):
+        linked, (node,) = self.build("a")
+        linked.remove(node)
+
+        for operation in (linked.remove, linked.move_to_front, linked.move_to_back):
+            with self.subTest(operation=operation.__name__):
+                with self.assertRaises(ValueError):
+                    operation(node)
+
+    def test_node_from_another_list_or_a_plain_object_is_rejected(self):
+        linked, _ = self.build(1)
+        other, (foreign,) = self.build(9)
+
+        with self.assertRaises(ValueError):
+            linked.remove(foreign)
+        with self.assertRaises(ValueError):
+            linked.move_to_front("no soy un nodo")
+        self.assertEqual(list(other), [9])
+
+    def test_move_to_front_reorders_without_changing_the_size(self):
+        linked, (a, b, c, d) = self.build("a", "b", "c", "d")
+
+        linked.move_to_front(c)
+        self.assertEqual(self.forward_and_backward(linked), (["c", "a", "b", "d"], ["d", "b", "a", "c"]))
+        linked.move_to_front(d)
+        linked.move_to_front(d)  # ya está al inicio
+
+        self.assertEqual(list(linked), ["d", "c", "a", "b"])
+        self.assertEqual(len(linked), 4)
+
+    def test_move_to_back_reorders_without_changing_the_size(self):
+        linked, (a, b, c) = self.build("a", "b", "c")
+
+        linked.move_to_back(a)
+        linked.move_to_back(a)  # ya está al final
+
+        self.assertEqual(self.forward_and_backward(linked), (["b", "c", "a"], ["a", "c", "b"]))
+        self.assertEqual(len(linked), 3)
+
+    def test_clear_empties_and_invalidates_the_old_nodes(self):
+        linked, (node, _) = self.build(1, 2)
+
+        linked.clear()
+
+        self.assertTrue(linked.is_empty())
+        self.assertEqual(list(linked), [])
+        with self.assertRaises(ValueError):
+            linked.remove(node)
+        linked.push_back("nuevo")
+        self.assertEqual(list(linked), ["nuevo"])
+
+    def test_matches_a_plain_list_under_random_operations(self):
+        generator = random.Random(11)
+        linked = DoublyLinkedList()
+        reference = []
+        nodes = []  # nodos vivos, en el mismo orden que ``reference``
+        for step in range(800):
+            operation = generator.choice(
+                ("front", "back", "pop_front", "pop_back", "remove", "to_front", "to_back")
+            )
+            if operation == "front":
+                nodes.insert(0, linked.push_front(step))
+                reference.insert(0, step)
+            elif operation == "back":
+                nodes.append(linked.push_back(step))
+                reference.append(step)
+            elif not reference:
+                continue
+            elif operation == "pop_front":
+                self.assertEqual(linked.pop_front(), reference.pop(0))
+                nodes.pop(0)
+            elif operation == "pop_back":
+                self.assertEqual(linked.pop_back(), reference.pop())
+                nodes.pop()
+            else:
+                index = generator.randrange(len(reference))
+                node = nodes[index]
+                if operation == "remove":
+                    self.assertEqual(linked.remove(node), reference.pop(index))
+                    nodes.pop(index)
+                elif operation == "to_front":
+                    linked.move_to_front(node)
+                    nodes.insert(0, nodes.pop(index))
+                    reference.insert(0, reference.pop(index))
+                else:
+                    linked.move_to_back(node)
+                    nodes.append(nodes.pop(index))
+                    reference.append(reference.pop(index))
+
+            self.assertEqual(list(linked), reference)
+            self.assertEqual(list(linked.reversed()), reference[::-1])
+            self.assertEqual(len(linked), len(reference))
