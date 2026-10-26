@@ -1355,7 +1355,8 @@ class AIReadingRepresentationTests(APITestCase):
         for _ in range(5):
             self.post_reading(ai_prediction(risk_level="WARNING", probability=0.6))
 
-        with self.assertNumQueries(1):
+        # Una consulta para la página y otra para X-Total-Count; no crece con las lecturas.
+        with self.assertNumQueries(2):
             response = self.client.get(reverse("receive_reading"))
 
         self.assertEqual(len(response.data), 5)

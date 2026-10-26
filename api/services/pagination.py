@@ -6,6 +6,7 @@ from rest_framework.exceptions import ParseError
 logger = logging.getLogger("api.readings")
 
 MAX_LIMIT = 500
+TOTAL_COUNT_HEADER = "X-Total-Count"
 
 
 def _parse_integer(value, name, default):
@@ -31,3 +32,9 @@ def parse_pagination(query_params, default_limit):
         logger.warning("Paginación rechazada: %s", error.detail)
         raise
     return limit, offset
+
+
+def paginate(queryset, query_params, default_limit):
+    """Devuelve (página, total) del queryset según `limit` y `offset`."""
+    limit, offset = parse_pagination(query_params, default_limit)
+    return queryset[offset:offset + limit], queryset.count()

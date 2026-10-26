@@ -15,7 +15,7 @@ from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicR
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
-from .services.pagination import parse_pagination
+from .services.pagination import TOTAL_COUNT_HEADER, paginate
 from .throttles import IngestThrottle, ReadThrottle
 from .services.reading_queries import filter_readings, parse_datetime_parameter
 
@@ -51,9 +51,11 @@ class NodeReadingsView(APIView):
             "assessment",
         )
         readings = filter_readings(readings, request.query_params)
-        limit, offset = parse_pagination(request.query_params, default_limit=20)
-        page = readings[offset:offset + limit]
-        return Response(SensorReadingSerializer(page, many=True).data)
+        page, total = paginate(readings, request.query_params, default_limit=20)
+        return Response(
+            SensorReadingSerializer(page, many=True).data,
+            headers={TOTAL_COUNT_HEADER: total},
+        )
 
 
 class DashboardSummaryView(APIView):
@@ -96,11 +98,11 @@ class ReceiveMeasurementView(APIView):
             readings = readings.filter(node__node_id=node_id)
 
         readings = filter_readings(readings, request.query_params)
-        limit, offset = parse_pagination(request.query_params, default_limit=20)
-        page = readings[offset:offset + limit]
+        page, total = paginate(readings, request.query_params, default_limit=20)
         return Response(
             SensorReadingSerializer(page, many=True).data,
             status=status.HTTP_200_OK,
+            headers={TOTAL_COUNT_HEADER: total},
         )
 
 
