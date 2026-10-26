@@ -70,7 +70,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
 - [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
 - [x] fix(structures): `RecentItemsRing.append` distingue «no expulsó nada» de «expulsó `None`» con un valor centinela (revisión con Lemmaly) [2.30]
-- [ ] test(structures): pruebas del centinela de `RecentItemsRing` con elementos `None` guardados [2.31]
+- [x] test(structures): pruebas del centinela de `RecentItemsRing` con elementos `None` guardados [2.31]
 - [ ] docs(structures): complejidad esperada frente a peor caso en las estructuras con tabla hash, operaciones sin documentar y aviso de que no son seguras entre hilos (revisión con CLRS) [2.32]
 - [ ] docs: `docs/ESTRUCTURAS_DE_DATOS.md` con cada estructura, sus complejidades y dónde se usa [2.24]
 

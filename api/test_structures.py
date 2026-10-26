@@ -113,6 +113,24 @@ class RecentItemsRingTests(SimpleTestCase):
         self.assertEqual(len(buffer), 2)
         self.assertEqual(list(buffer), [None, None])
 
+    def test_evicting_a_stored_none_is_distinguishable_from_evicting_nothing(self):
+        buffer = RecentItemsRing(2)
+
+        nothing_yet = [buffer.append(None), buffer.append("x")]
+        evicted_none = buffer.append("y")
+
+        self.assertIs(nothing_yet[0], RecentItemsRing.NOTHING_EVICTED)
+        self.assertIs(nothing_yet[1], RecentItemsRing.NOTHING_EVICTED)
+        self.assertIsNone(evicted_none)
+        self.assertIsNot(evicted_none, RecentItemsRing.NOTHING_EVICTED)
+
+    def test_nothing_evicted_marker_is_falsy_and_readable(self):
+        marker = RecentItemsRing.NOTHING_EVICTED
+
+        self.assertFalse(marker)
+        self.assertEqual(repr(marker), "NOTHING_EVICTED")
+        self.assertIs(RecentItemsRing(1).append("a"), marker)
+
     def test_clear_empties_the_buffer_and_it_can_be_reused(self):
         buffer = RecentItemsRing(3)
         for value in range(5):
