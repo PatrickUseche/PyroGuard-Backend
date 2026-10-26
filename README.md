@@ -63,6 +63,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
+| `THROTTLE_LOGIN_RATE` | Límite de intentos de `POST /auth/login/` por IP, con el mismo formato | `10/min` |
 | `NUM_PROXIES` | Saltos de proxy delante de la app, para identificar la IP del cliente | Vacío |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
 | `EXTRA_CORS_ORIGINS` | Orígenes CORS adicionales separados por comas | Vacío |
@@ -81,14 +82,14 @@ se registra una advertencia.
 
 | Método y ruta | Descripción |
 | --- | --- |
-| `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `order` |
+| `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `offset`, `order` |
 | `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta |
 | `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
 | `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo |
-| `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial |
+| `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial; `/alerts/` acepta `limit` (por defecto 100) y `offset` |
 | `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar estado con autenticación |
 | `POST /auth/login/` | Obtener token de DRF |
 
@@ -135,12 +136,13 @@ cerrarlas en cuanto el frontend pueda enviar el token.
 
 ## Límite de peticiones
 
-Cada IP tiene dos cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
-compartido por todos los endpoints de lectura) y la ingesta POST de lecturas
-(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red). Al
-superarlos la API responde HTTP 429 con la cabecera `Retry-After`. Las
-peticiones sin credenciales válidas se rechazan antes de contar contra el cupo
-de ingesta.
+Cada IP tiene tres cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
+compartido por todos los endpoints de lectura), la ingesta POST de lecturas
+(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red) y
+los intentos de login (`THROTTLE_LOGIN_RATE`, estricto para frenar la fuerza
+bruta de contraseñas). Al superarlos la API responde HTTP 429 con la cabecera
+`Retry-After`. Las peticiones sin credenciales válidas se rechazan antes de
+contar contra el cupo de ingesta.
 
 Los contadores viven en la memoria de cada proceso, así que con varios workers
 de gunicorn el límite efectivo se multiplica por el número de workers. Detrás
@@ -171,6 +173,18 @@ minutos en el futuro. Rangos aceptados: temperatura `-50..150`, humedad
 `GET /api/readings/` devuelve siempre una lista JSON plana, incluso sin
 resultados (`[]`). `range` acepta `24h` o `7d`; `limit` va de 1 a 500 y por
 defecto es 20; `order` acepta `asc` o `desc` y por defecto es `desc`.
+
+Paginación: `offset` (0 por defecto) salta esa cantidad de resultados tras
+aplicar filtros y orden. La respuesta sigue siendo una lista plana y la
+cabecera `X-Total-Count` trae el total de resultados del filtro, sin contar
+`limit` ni `offset`, para que el cliente calcule las páginas. También rigen en
+`/nodes/{node_id}/readings/` y en `/alerts/` (donde `limit` vale 100 por
+defecto). La cabecera se expone por CORS. Un `limit` fuera de 1–500 o un
+`offset` negativo o no numérico devuelven HTTP 400.
+
+```bash
+curl -i "http://localhost:8000/api/readings/?node_id=SIM-001&limit=20&offset=40"
+```
 
 Cada lectura incluye `risk_level`, la decisión final del backend, y `ai`, el
 resultado de PyroGuard-IA usado como evidencia (`null` si la lectura aún no

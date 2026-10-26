@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.authtoken.views import ObtainAuthToken
+from .throttles import LoginThrottle
 from .views import (
     AcknowledgeAlertView,
     ActiveAlertListView,
@@ -20,7 +21,11 @@ router.register("nodes", NodeViewSet, basename="node")
 urlpatterns = [
     path("readings/", ReceiveMeasurementView.as_view(), name="receive_reading"),
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard_summary"),
-    path("auth/login/", obtain_auth_token, name="api_token_auth"),
+    path(
+        "auth/login/",
+        ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),
+        name="api_token_auth",
+    ),
     path(
         "nodes/<str:node_id>/status/",
         NodeStatusView.as_view(),

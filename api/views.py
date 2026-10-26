@@ -15,6 +15,7 @@ from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicR
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
+from .services.pagination import TOTAL_COUNT_HEADER, paginate
 from .throttles import IngestThrottle, ReadThrottle
 from .services.reading_queries import filter_readings, parse_datetime_parameter
 
@@ -50,7 +51,11 @@ class NodeReadingsView(APIView):
             "assessment",
         )
         readings = filter_readings(readings, request.query_params)
-        return Response(SensorReadingSerializer(readings, many=True).data)
+        page, total = paginate(readings, request.query_params, default_limit=20)
+        return Response(
+            SensorReadingSerializer(page, many=True).data,
+            headers={TOTAL_COUNT_HEADER: total},
+        )
 
 
 class DashboardSummaryView(APIView):
@@ -93,9 +98,11 @@ class ReceiveMeasurementView(APIView):
             readings = readings.filter(node__node_id=node_id)
 
         readings = filter_readings(readings, request.query_params)
+        page, total = paginate(readings, request.query_params, default_limit=20)
         return Response(
-            SensorReadingSerializer(readings, many=True).data,
+            SensorReadingSerializer(page, many=True).data,
             status=status.HTTP_200_OK,
+            headers={TOTAL_COUNT_HEADER: total},
         )
 
 
@@ -130,7 +137,11 @@ class AlertListView(APIView):
             alerts = alerts.filter(created_at__lte=to_date)
 
         alerts = alerts.order_by("-created_at", "-pk")
-        return Response(AlertSerializer(alerts, many=True).data)
+        page, total = paginate(alerts, request.query_params, default_limit=100)
+        return Response(
+            AlertSerializer(page, many=True).data,
+            headers={TOTAL_COUNT_HEADER: total},
+        )
 
 
 class ActiveAlertListView(APIView):

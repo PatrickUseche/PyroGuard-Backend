@@ -26,6 +26,13 @@ class ReadThrottle(_IPMethodThrottle):
     safe_methods = True
 
 
+class LoginThrottle(_IPMethodThrottle):
+    """Intentos de inicio de sesión; frena la fuerza bruta de contraseñas."""
+
+    scope = "login"
+    safe_methods = False
+
+
 class IngestThrottle(_IPMethodThrottle):
     """Ingesta POST de lecturas; el límite es holgado para varios nodos por IP."""
 

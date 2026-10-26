@@ -204,6 +204,8 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.vercel\.app$",
 ]
+# Sin esto el navegador oculta estas cabeceras al JavaScript del frontend.
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -223,6 +225,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "read": _env_rate("THROTTLE_READ_RATE", "120/min"),
         "ingest": _env_rate("THROTTLE_INGEST_RATE", "300/min"),
+        "login": _env_rate("THROTTLE_LOGIN_RATE", "10/min"),
     },
     # Saltos de proxy delante de la app; sin valor, DRF toma todo X-Forwarded-For.
     "NUM_PROXIES": _env_non_negative_int("NUM_PROXIES"),
