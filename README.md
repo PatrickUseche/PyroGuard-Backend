@@ -64,7 +64,8 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
 | `THROTTLE_LOGIN_RATE` | Límite de intentos de `POST /auth/login/` por IP, con el mismo formato | `10/min` |
-| `NUM_PROXIES` | Saltos de proxy delante de la app, para identificar la IP del cliente | Vacío |
+| `CLIENT_IP_HEADER` | Cabecera con la IP del cliente que escribe un proxy de confianza (en Render, `CF-Connecting-IP`) | Vacío |
+| `NUM_PROXIES` | Saltos de proxy delante de la app, si no se usa `CLIENT_IP_HEADER` | Vacío |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
 | `EXTRA_CORS_ORIGINS` | Orígenes CORS adicionales separados por comas | Vacío |
 
@@ -145,10 +146,26 @@ bruta de contraseñas). Al superarlos la API responde HTTP 429 con la cabecera
 contar contra el cupo de ingesta.
 
 Los contadores viven en la memoria de cada proceso, así que con varios workers
-de gunicorn el límite efectivo se multiplica por el número de workers. Detrás
-de un proxy (Render), define `NUM_PROXIES` con el número de saltos para que se
-cuente la IP real del cliente; sin valor se usa todo `X-Forwarded-For`, que un
-cliente puede falsear para esquivar el límite.
+de gunicorn el límite efectivo se multiplica por el número de workers.
+
+### IP del cliente detrás de un proxy
+
+Detrás de un proxy la app solo ve la IP del proxy, así que hay que decir de
+dónde sacar la IP real. Hay tres opciones, de más a menos recomendable:
+
+1. **`CLIENT_IP_HEADER`** (recomendada en Render): nombre de una cabecera que
+   escribe un proxy de confianza y que pisa lo que envíe el cliente. Render
+   pone a Cloudflare delante de los servicios web públicos, y Cloudflare escribe
+   `CF-Connecting-IP`; con `CLIENT_IP_HEADER=CF-Connecting-IP` el cupo es por
+   cliente real. No se mira `X-Forwarded-For`, así que no se puede esquivar el
+   límite falseándolo. Si la cabecera falta o no es una IP válida se usa la IP
+   del socket. No la uses si la app es alcanzable sin pasar por ese proxy, porque
+   entonces cualquiera podría enviar la cabecera.
+2. **`NUM_PROXIES`**: número de saltos de proxy delante de la app; se toma la IP
+   que corresponde de `X-Forwarded-For`. Exige acertar el número exacto: de menos,
+   varios clientes comparten cupo; de más, un cliente puede falsear su IP.
+3. **Ninguna de las dos**: se usa todo `X-Forwarded-For`, que el cliente puede
+   falsear para esquivar el límite. Solo es aceptable en desarrollo local.
 
 ## Contrato de lectura
 

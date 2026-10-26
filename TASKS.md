@@ -33,7 +33,7 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - [x] test(auth): pruebas del límite de intentos de login [1.11]
 - [x] feat(throttling): identificar al cliente por una cabecera de confianza configurable (`CLIENT_IP_HEADER`, p. ej. `CF-Connecting-IP` en Render) en lugar de contar saltos de proxy [1.12]
 - [x] test(throttling): pruebas de la cabecera de IP (cupos por cliente, cabecera falseada o inválida y ajuste vacío) [1.13]
-- [ ] docs(throttling): documentar `CLIENT_IP_HEADER` y cuándo usarlo en lugar de `NUM_PROXIES` [1.14]
+- [x] docs(throttling): documentar `CLIENT_IP_HEADER` y cuándo usarlo en lugar de `NUM_PROXIES` [1.14]
 
 ## Fase 2 — Estructuras de datos propias (`api/structures/`)
 
