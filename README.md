@@ -291,15 +291,22 @@ modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 ## Despliegue en Render
 
 1. Crear un servicio web desde el repositorio del backend.
-2. Build command: `pip install -r requirements.txt`.
-3. El `Procfile` ejecuta `collectstatic` y `gunicorn config.wsgi:application`.
+2. Build command: `pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput`.
+3. Start command: `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`. El
+	 `Procfile` repite los pasos (`migrate`, `collectstatic` y `gunicorn`) para quien
+	 lo use, pero Render obedece los comandos de su panel, no el `Procfile`.
 4. Configurar `DEBUG=False`, `SECRET_KEY`, `DATABASE_URL`, `INGEST_API_KEY` y
 	 el resto de variables necesarias en el entorno de Render. Agregar dominios
 	 con `EXTRA_ALLOWED_HOSTS` y orígenes con `EXTRA_CORS_ORIGINS` cuando proceda.
-5. Aplicar migraciones explícitamente contra la base de Render antes de servir
-	 tráfico: `python manage.py migrate`. El Procfile no migra automáticamente.
+5. Las migraciones se aplican en cada despliegue con `migrate --noinput` (en el
+	 build command y en el `Procfile`); son idempotentes. Con una sola instancia no
+	 hay carreras; si algún día hay varias, migra solo desde el build.
 6. Confirmar que el origen del frontend esté permitido por CORS y que el host
 	 de la API esté permitido en `ALLOWED_HOSTS`.
 
 No ejecutes migraciones de producción desde una terminal local sin confirmar
 explícitamente la conexión seleccionada.
+
+Si el build falla antes de arrancar (por ejemplo `ValueError` en `settings.py`),
+Render sigue sirviendo el último despliegue que funcionó. Revisa la pestaña
+Events y compara el commit servido con `main`.
