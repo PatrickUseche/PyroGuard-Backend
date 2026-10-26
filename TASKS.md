@@ -42,7 +42,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(structures): paquete `api/structures` con las convenciones y la forma de documentar complejidades [2.1]
 - [x] feat(structures): buffer circular (`RingBuffer`) de capacidad fija con sobrescritura del más antiguo [2.2]
 - [x] test(structures): pruebas del buffer circular (vacío, lleno, sobrescritura, iteración en orden) [2.3]
-- [ ] feat(structures): ventana deslizante con cola monótona para máximo y mínimo en O(1) amortizado [2.4]
+- [x] feat(structures): ventana deslizante con cola monótona para máximo y mínimo en O(1) amortizado [2.4]
 - [ ] test(structures): pruebas de la ventana deslizante contra una solución de fuerza bruta [2.5]
 - [ ] feat(structures): lista doblemente enlazada con inserción y borrado en O(1) por nodo [2.6]
 - [ ] test(structures): pruebas de la lista doblemente enlazada [2.7]
