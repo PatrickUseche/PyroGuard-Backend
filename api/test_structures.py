@@ -39,7 +39,7 @@ class RecentItemsRingTests(SimpleTestCase):
     def test_items_are_kept_in_insertion_order_until_full(self):
         buffer = RecentItemsRing(3)
         for value in (1, 2):
-            self.assertIsNone(buffer.append(value))
+            self.assertIs(buffer.append(value), RecentItemsRing.NOTHING_EVICTED)
 
         self.assertEqual(list(buffer), [1, 2])
         self.assertEqual(len(buffer), 2)
@@ -91,7 +91,7 @@ class RecentItemsRingTests(SimpleTestCase):
     def test_capacity_one_always_keeps_the_last_item(self):
         buffer = RecentItemsRing(1)
 
-        self.assertIsNone(buffer.append("a"))
+        self.assertIs(buffer.append("a"), RecentItemsRing.NOTHING_EVICTED)
         self.assertEqual(buffer.append("b"), "a")
         self.assertEqual(buffer.append("c"), "b")
 
