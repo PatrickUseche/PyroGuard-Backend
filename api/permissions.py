@@ -8,10 +8,23 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 logger = logging.getLogger("api.permissions")
 
 
+def _is_authenticated(request):
+    return bool(request.user and request.user.is_authenticated)
+
+
+class IsAuthenticatedOrPublicRead(BasePermission):
+    """Las lecturas son públicas salvo que PUBLIC_READ_ACCESS sea False."""
+
+    def has_permission(self, request, _view):
+        if request.method in SAFE_METHODS and settings.PUBLIC_READ_ACCESS:
+            return True
+        return _is_authenticated(request)
+
+
 class IsAuthenticatedOrIngestAPIKey(BasePermission):
     def has_permission(self, request, _view):
         if request.method in SAFE_METHODS:
-            return True
+            return settings.PUBLIC_READ_ACCESS or _is_authenticated(request)
 
         expected_key = settings.INGEST_API_KEY
         supplied_key = request.headers.get("X-API-Key", "")

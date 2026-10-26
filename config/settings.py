@@ -234,6 +234,8 @@ NODE_OFFLINE_THRESHOLD_SECONDS = int(
 )
 ALERT_ON_WARNING = _env_bool("ALERT_ON_WARNING", False)
 AUTO_REGISTER_NODES = _env_bool("AUTO_REGISTER_NODES", False)
+# Con False, las consultas GET también exigen token (para cuando el frontend tenga login).
+PUBLIC_READ_ACCESS = _env_bool("PUBLIC_READ_ACCESS", True)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.

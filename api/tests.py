@@ -1699,3 +1699,95 @@ class ThrottleSettingsTests(SimpleTestCase):
                 with patch.dict(os.environ, {"NUM_PROXIES": value}):
                     with self.assertRaises(ImproperlyConfigured):
                         _env_non_negative_int("NUM_PROXIES")
+
+
+class ReadAccessTests(APITestCase):
+    ingest_api_key = "test-ingest-key"
+
+    def setUp(self):
+        self.node = Node.objects.create(node_id="ACCESS-NODE")
+        self.reading = SensorReading.objects.create(
+            node=self.node,
+            temperature=20,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+        self.alert = Alert.objects.create(
+            node=self.node,
+            reading=self.reading,
+            level=Alert.Level.FIRE,
+            message="Alerta de prueba",
+        )
+        self.user = get_user_model().objects.create_user("operador", password="x")
+
+    def read_urls(self):
+        return {
+            "receive_reading": reverse("receive_reading"),
+            "dashboard_summary": reverse("dashboard_summary"),
+            "node_list": reverse("node-list"),
+            "node_detail": reverse("node-detail", args=[self.node.node_id]),
+            "node_status": reverse("node_status", args=[self.node.node_id]),
+            "node_readings": reverse("node_readings", args=[self.node.node_id]),
+            "alert_list": reverse("alert_list"),
+            "active_alerts": reverse("active_alerts"),
+            "alert_detail": reverse("alert_detail", args=[self.alert.pk]),
+        }
+
+    def test_reads_are_public_by_default(self):
+        self.assertTrue(settings_module.PUBLIC_READ_ACCESS)
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_require_authentication(self):
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                response = self.client.get(url)
+
+                self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_work_with_a_token(self):
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_do_not_block_the_login(self):
+        response = self.client.post(
+            reverse("api_token_auth"),
+            {"username": "operador", "password": "x"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+    @override_settings(PUBLIC_READ_ACCESS=False, INGEST_API_KEY=ingest_api_key)
+    def test_closed_reads_do_not_block_ingestion_with_the_api_key(self):
+        response = self.client.post(
+            reverse("receive_reading"),
+            {
+                "node_id": self.node.node_id,
+                "temperature": 24.5,
+                "humidity": 48,
+                "smoke": 18,
+                "flame": False,
+                "timestamp": timezone.now().isoformat(),
+            },
+            format="json",
+            HTTP_X_API_KEY=self.ingest_api_key,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_writes_still_require_authentication_when_reads_are_public(self):
+        response = self.client.post(
+            reverse("node-list"), {"node_id": "NEW-NODE"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
