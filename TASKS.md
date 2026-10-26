@@ -14,6 +14,8 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 - **Materia: Estructuras de datos.** Las estructuras de la Fase 2 se implementan a mano en `api/structures/` (sin apoyarse en
   `collections.deque`, `heapq` ni `functools.lru_cache` para lo que se quiere demostrar), con su complejidad documentada, y
   después se usan en una funcionalidad real del backend (Fase 3 y siguientes). Cada estructura tiene sus pruebas propias.
+- **Nombres descriptivos.** Las clases se nombran por lo que hacen, no solo por el tipo de estructura
+  (`RecentItemsRing`, `LeastRecentlyUsedCache`, `FirstInFirstOutQueue`…), y cada archivo lleva el nombre de su clase.
 - **Meta de commits: más de 150 en este repo.** Cada task es un cambio lógico pequeño y real; el código, las pruebas y la
   documentación van en commits separados. Un PR por grupo de tasks, siempre desde `main` actualizado.
 - Los PR no se apilan: se espera el merge del anterior si tocan los mismos archivos (`api/tests.py`, README, `TASKS.md`).
@@ -40,16 +42,16 @@ alertas con transiciones, estado de nodos, resumen de dashboard, simulador, CI y
 Cada estructura: implementación → pruebas. La complejidad de cada operación va en el docstring y en [2.24].
 
 - [x] feat(structures): paquete `api/structures` con las convenciones y la forma de documentar complejidades [2.1]
-- [x] feat(structures): buffer circular (`RingBuffer`) de capacidad fija con sobrescritura del más antiguo [2.2]
+- [x] feat(structures): buffer circular (`RecentItemsRing`) de capacidad fija con sobrescritura del más antiguo [2.2]
 - [x] test(structures): pruebas del buffer circular (vacío, lleno, sobrescritura, iteración en orden) [2.3]
 - [x] feat(structures): ventana deslizante con cola monótona para máximo y mínimo en O(1) amortizado [2.4]
 - [x] test(structures): pruebas de la ventana deslizante contra una solución de fuerza bruta [2.5]
-- [ ] feat(structures): lista doblemente enlazada con inserción y borrado en O(1) por nodo [2.6]
-- [ ] test(structures): pruebas de la lista doblemente enlazada [2.7]
-- [ ] feat(structures): caché LRU con diccionario y lista doblemente enlazada [2.8]
-- [ ] test(structures): pruebas del LRU (expulsión, orden de uso, capacidad 1) [2.9]
-- [ ] feat(structures): cola FIFO con nodos enlazados [2.10]
-- [ ] test(structures): pruebas de la cola FIFO [2.11]
+- [x] feat(structures): lista doblemente enlazada con inserción y borrado en O(1) por nodo [2.6]
+- [x] test(structures): pruebas de la lista doblemente enlazada [2.7]
+- [x] feat(structures): caché LRU con diccionario y lista doblemente enlazada [2.8]
+- [x] test(structures): pruebas del LRU (expulsión, orden de uso, capacidad 1) [2.9]
+- [x] feat(structures): cola FIFO con nodos enlazados [2.10]
+- [x] test(structures): pruebas de la cola FIFO [2.11]
 - [ ] feat(structures): montículo binario mínimo con función de prioridad configurable [2.12]
 - [ ] test(structures): pruebas del montículo (orden, empates, vaciado, top-K) [2.13]
 - [ ] feat(structures): trie para búsqueda por prefijo [2.14]
@@ -62,6 +64,11 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] test(structures): pruebas de las sumas de prefijos [2.21]
 - [ ] feat(structures): filtro de Bloom para detectar duplicados [2.22]
 - [ ] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
+- [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
+- [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
+- [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
+- [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
+- [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
 - [ ] docs: `docs/ESTRUCTURAS_DE_DATOS.md` con cada estructura, sus complejidades y dónde se usa [2.24]
 
 ## Fase 3 — Las estructuras en el backend
