@@ -15,7 +15,8 @@ load_dotenv(BASE_DIR / ".env")
 
 def _env_bool(name, default):
     value = os.getenv(name)
-    if value is None:
+    # Vacía equivale a no definida, como en el resto de variables (.env.example).
+    if value is None or not value.strip():
         return default
 
     normalized_value = value.strip().lower()
@@ -23,7 +24,10 @@ def _env_bool(name, default):
         return True
     if normalized_value in {"false", "0", "no", "off"}:
         return False
-    raise ValueError(f"{name} debe ser un valor booleano válido.")
+    raise ValueError(
+        f"{name} debe ser un valor booleano válido "
+        "(true/false, 1/0, yes/no u on/off)."
+    )
 
 
 def _env_list(name):
