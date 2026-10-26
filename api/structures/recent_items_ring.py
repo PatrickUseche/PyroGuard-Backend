@@ -1,3 +1,15 @@
+class _NothingEvicted:
+    """Marca «no se expulsó nada»; distinta de ``None``, que también se puede guardar."""
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "NOTHING_EVICTED"
+
+    def __bool__(self):
+        return False
+
+
 class RecentItemsRing:
     """Buffer circular de capacidad fija: al llenarse sobrescribe lo más antiguo.
 
@@ -9,9 +21,11 @@ class RecentItemsRing:
         oldest() / newest() -- O(1)
         buffer[i] -- O(1)
         iter(buffer) / list(buffer) -- O(n)
-        clear() -- O(k)
-        espacio -- O(k), fijo desde que se crea
+        RecentItemsRing(k) / clear() -- O(k), reservan o limpian las k posiciones
+        espacio -- O(k), fijo desde que se crea (no crece con lo que se agrega)
     """
+
+    NOTHING_EVICTED = _NothingEvicted()
 
     def __init__(self, capacity):
         if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity < 1:
@@ -35,11 +49,15 @@ class RecentItemsRing:
         return self._size == self._capacity
 
     def append(self, item):
-        """Agrega ``item`` como el más reciente y devuelve el expulsado, si lo hubo."""
+        """Agrega ``item`` como el más reciente y devuelve el elemento expulsado.
+
+        Si todavía había lugar devuelve ``NOTHING_EVICTED``, no ``None``: así se
+        distingue de haber expulsado un ``None`` guardado.
+        """
         if self._size < self._capacity:
             self._slots[(self._head + self._size) % self._capacity] = item
             self._size += 1
-            return None
+            return self.NOTHING_EVICTED
 
         evicted = self._slots[self._head]
         self._slots[self._head] = item

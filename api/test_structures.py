@@ -39,7 +39,7 @@ class RecentItemsRingTests(SimpleTestCase):
     def test_items_are_kept_in_insertion_order_until_full(self):
         buffer = RecentItemsRing(3)
         for value in (1, 2):
-            self.assertIsNone(buffer.append(value))
+            self.assertIs(buffer.append(value), RecentItemsRing.NOTHING_EVICTED)
 
         self.assertEqual(list(buffer), [1, 2])
         self.assertEqual(len(buffer), 2)
@@ -91,7 +91,7 @@ class RecentItemsRingTests(SimpleTestCase):
     def test_capacity_one_always_keeps_the_last_item(self):
         buffer = RecentItemsRing(1)
 
-        self.assertIsNone(buffer.append("a"))
+        self.assertIs(buffer.append("a"), RecentItemsRing.NOTHING_EVICTED)
         self.assertEqual(buffer.append("b"), "a")
         self.assertEqual(buffer.append("c"), "b")
 
@@ -112,6 +112,24 @@ class RecentItemsRingTests(SimpleTestCase):
 
         self.assertEqual(len(buffer), 2)
         self.assertEqual(list(buffer), [None, None])
+
+    def test_evicting_a_stored_none_is_distinguishable_from_evicting_nothing(self):
+        buffer = RecentItemsRing(2)
+
+        nothing_yet = [buffer.append(None), buffer.append("x")]
+        evicted_none = buffer.append("y")
+
+        self.assertIs(nothing_yet[0], RecentItemsRing.NOTHING_EVICTED)
+        self.assertIs(nothing_yet[1], RecentItemsRing.NOTHING_EVICTED)
+        self.assertIsNone(evicted_none)
+        self.assertIsNot(evicted_none, RecentItemsRing.NOTHING_EVICTED)
+
+    def test_nothing_evicted_marker_is_falsy_and_readable(self):
+        marker = RecentItemsRing.NOTHING_EVICTED
+
+        self.assertFalse(marker)
+        self.assertEqual(repr(marker), "NOTHING_EVICTED")
+        self.assertIs(RecentItemsRing(1).append("a"), marker)
 
     def test_clear_empties_the_buffer_and_it_can_be_reused(self):
         buffer = RecentItemsRing(3)

@@ -69,6 +69,9 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
 - [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
 - [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
+- [x] fix(structures): `RecentItemsRing.append` distingue «no expulsó nada» de «expulsó `None`» con un valor centinela (revisión con Lemmaly) [2.30]
+- [x] test(structures): pruebas del centinela de `RecentItemsRing` con elementos `None` guardados [2.31]
+- [x] docs(structures): complejidad esperada frente a peor caso en las estructuras con tabla hash, operaciones sin documentar y aviso de que no son seguras entre hilos (revisión con CLRS) [2.32]
 - [ ] docs: `docs/ESTRUCTURAS_DE_DATOS.md` con cada estructura, sus complejidades y dónde se usa [2.24]
 
 ## Fase 3 — Las estructuras en el backend
@@ -97,6 +100,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] feat(nodes): zonas de riesgo: agrupar con Union-Find los nodos conectados que están en riesgo [3.22]
 - [ ] feat(api): `GET /dashboard/zones/` [3.23]
 - [ ] test(nodes): pruebas del grafo de nodos, de la propagación y de las zonas [3.24]
+- [ ] feat(cache): proteger con un candado (`threading.Lock`) las estructuras compartidas entre peticiones y documentar que cada worker tiene su copia [3.25]
 
 ## Fase 4 — Volumen y series
 

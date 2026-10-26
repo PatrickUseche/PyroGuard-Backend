@@ -14,11 +14,11 @@ class FirstInFirstOutQueue:
     cola ni desplaza elementos, a diferencia de ``list.pop(0)``, que es O(n).
 
     Complejidad (``n`` = elementos):
-        enqueue(item) -- O(1)
-        dequeue() -- O(1)
+        enqueue(item) -- O(1) en el peor caso
+        dequeue() -- O(1) en el peor caso
         peek() / len() / is_empty() -- O(1)
-        iter(cola) -- O(n)
-        espacio -- O(n)
+        FirstInFirstOutQueue(items) / iter(cola) / clear() -- O(n)
+        espacio -- O(n), un nodo por elemento
     """
 
     def __init__(self, items=()):

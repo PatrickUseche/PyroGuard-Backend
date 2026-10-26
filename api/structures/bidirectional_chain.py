@@ -26,9 +26,10 @@ class BidirectionalChain:
         push_front / push_back -- O(1)
         pop_front / pop_back -- O(1)
         remove(node) / move_to_front(node) / move_to_back(node) -- O(1)
-        front() / back() / len() -- O(1)
-        iter(lista) -- O(n)
-        buscar un valor -- O(n)
+        front() / back() / front_node() / back_node() / len() -- O(1)
+        iter(lista) / reversed() -- O(n)
+        clear() -- O(n), porque invalida cada nodo para que no se reutilice
+        espacio -- O(n), dos enlaces por nodo
     """
 
     def __init__(self):
