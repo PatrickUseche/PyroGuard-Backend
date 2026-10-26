@@ -204,6 +204,8 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.vercel\.app$",
 ]
+# Sin esto el navegador oculta estas cabeceras al JavaScript del frontend.
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
