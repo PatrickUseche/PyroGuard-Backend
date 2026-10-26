@@ -165,3 +165,4 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] chore(deploy): ejecutar las migraciones en un paso de release explícito [8.2] (en el build command de Render y en el `Procfile`; Render obedece el panel, no el `Procfile`)
 - [ ] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3]
 - [ ] docs(deploy): lista de comprobación previa al despliegue [8.4]
+- [x] test(deploy): el `Procfile` migra y recopila estáticos antes de arrancar gunicorn [8.7]

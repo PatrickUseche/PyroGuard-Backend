@@ -1995,3 +1995,18 @@ class PaginationTests(APITestCase):
         exposed = response["Access-Control-Expose-Headers"]
         self.assertIn("X-Total-Count", exposed)
         self.assertIn("Retry-After", exposed)
+
+
+class ProcfileTests(SimpleTestCase):
+    def test_procfile_migrates_and_collects_static_before_starting_gunicorn(self):
+        procfile = (Path(settings_module.BASE_DIR) / "Procfile").read_text(
+            encoding="utf-8"
+        )
+
+        migrate = procfile.index("manage.py migrate --noinput")
+        collectstatic = procfile.index("manage.py collectstatic --noinput")
+        gunicorn = procfile.index("gunicorn config.wsgi:application")
+
+        self.assertLess(migrate, collectstatic)
+        self.assertLess(collectstatic, gunicorn)
+        self.assertIn("--bind 0.0.0.0:$PORT", procfile)
