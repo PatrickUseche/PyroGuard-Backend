@@ -75,6 +75,15 @@ def _env_non_negative_int(name):
     return parsed_value
 
 
+def _env_header_name(name):
+    value = os.getenv(name, "").strip()
+    if value and not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", value):
+        raise ImproperlyConfigured(
+            f"{name} debe ser un nombre de cabecera HTTP, por ejemplo CF-Connecting-IP."
+        )
+    return value
+
+
 def _env_service_url(name):
     value = os.getenv(name, "").strip().rstrip("/")
     if value and not value.startswith(("http://", "https://")):
@@ -234,6 +243,11 @@ REST_FRAMEWORK = {
     # Saltos de proxy delante de la app; sin valor, DRF toma todo X-Forwarded-For.
     "NUM_PROXIES": _env_non_negative_int("NUM_PROXIES"),
 }
+
+# Cabecera con la IP real del cliente que escribe un proxy de confianza (en Render,
+# Cloudflare pone CF-Connecting-IP y pisa lo que envíe el cliente). Vacía: se
+# usa X-Forwarded-For según NUM_PROXIES.
+CLIENT_IP_HEADER = _env_header_name("CLIENT_IP_HEADER")
 
 INGEST_API_KEY = os.getenv("INGEST_API_KEY", "")
 NODE_OFFLINE_THRESHOLD_SECONDS = int(
