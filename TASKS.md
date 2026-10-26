@@ -166,4 +166,4 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3]
 - [ ] docs(deploy): lista de comprobación previa al despliegue [8.4]
 - [x] fix(config): tratar una variable booleana vacía como no definida; el build de Render fallaba con `DEBUG` vacía [8.5]
-- [ ] test(config): pruebas de `_env_bool` (vacía, valores válidos e inválidos) [8.6]
+- [x] test(config): pruebas de `_env_bool` (vacía, valores válidos e inválidos) [8.6]

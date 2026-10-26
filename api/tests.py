@@ -23,6 +23,7 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from config import settings as settings_module
 from config.settings import (
+    _env_bool,
     _env_non_negative_int,
     _env_positive_float,
     _env_rate,
@@ -1995,3 +1996,37 @@ class PaginationTests(APITestCase):
         exposed = response["Access-Control-Expose-Headers"]
         self.assertIn("X-Total-Count", exposed)
         self.assertIn("Retry-After", exposed)
+
+
+class BooleanSettingsTests(SimpleTestCase):
+    def test_missing_variable_uses_the_default(self):
+        with patch.dict(os.environ, clear=False):
+            os.environ.pop("PRUEBA_BOOL", None)
+            self.assertIs(_env_bool("PRUEBA_BOOL", True), True)
+            self.assertIs(_env_bool("PRUEBA_BOOL", False), False)
+
+    def test_empty_or_blank_variable_uses_the_default(self):
+        for value in ("", "   "):
+            for default in (True, False):
+                with self.subTest(value=value, default=default):
+                    with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                        self.assertIs(_env_bool("PRUEBA_BOOL", default), default)
+
+    def test_true_values_are_accepted(self):
+        for value in ("true", "True", "TRUE", "1", "yes", "on", " true "):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    self.assertIs(_env_bool("PRUEBA_BOOL", False), True)
+
+    def test_false_values_are_accepted(self):
+        for value in ("false", "False", "FALSE", "0", "no", "off", " false "):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    self.assertIs(_env_bool("PRUEBA_BOOL", True), False)
+
+    def test_invalid_value_is_rejected_naming_the_variable(self):
+        for value in ("falso", "production", "2", "'False'"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    with self.assertRaisesMessage(ValueError, "PRUEBA_BOOL"):
+                        _env_bool("PRUEBA_BOOL", False)
