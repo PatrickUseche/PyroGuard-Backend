@@ -81,14 +81,14 @@ se registra una advertencia.
 
 | Método y ruta | Descripción |
 | --- | --- |
-| `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `order` |
+| `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `offset`, `order` |
 | `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta |
 | `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
 | `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo |
-| `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial |
+| `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial; `/alerts/` acepta `limit` (por defecto 100) y `offset` |
 | `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar estado con autenticación |
 | `POST /auth/login/` | Obtener token de DRF |
 
@@ -171,6 +171,18 @@ minutos en el futuro. Rangos aceptados: temperatura `-50..150`, humedad
 `GET /api/readings/` devuelve siempre una lista JSON plana, incluso sin
 resultados (`[]`). `range` acepta `24h` o `7d`; `limit` va de 1 a 500 y por
 defecto es 20; `order` acepta `asc` o `desc` y por defecto es `desc`.
+
+Paginación: `offset` (0 por defecto) salta esa cantidad de resultados tras
+aplicar filtros y orden. La respuesta sigue siendo una lista plana y la
+cabecera `X-Total-Count` trae el total de resultados del filtro, sin contar
+`limit` ni `offset`, para que el cliente calcule las páginas. También rigen en
+`/nodes/{node_id}/readings/` y en `/alerts/` (donde `limit` vale 100 por
+defecto). La cabecera se expone por CORS. Un `limit` fuera de 1–500 o un
+`offset` negativo o no numérico devuelven HTTP 400.
+
+```bash
+curl -i "http://localhost:8000/api/readings/?node_id=SIM-001&limit=20&offset=40"
+```
 
 Cada lectura incluye `risk_level`, la decisión final del backend, y `ai`, el
 resultado de PyroGuard-IA usado como evidencia (`null` si la lectura aún no
