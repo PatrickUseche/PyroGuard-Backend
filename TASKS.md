@@ -68,7 +68,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
 - [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
 - [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
-- [ ] refactor(structures): renombrar `LinkedQueue` a `FirstInFirstOutQueue` [2.29]
+- [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
 - [ ] docs: `docs/ESTRUCTURAS_DE_DATOS.md` con cada estructura, sus complejidades y dónde se usa [2.24]
 
 ## Fase 3 — Las estructuras en el backend

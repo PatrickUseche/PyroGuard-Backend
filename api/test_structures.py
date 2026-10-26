@@ -4,7 +4,7 @@ from collections import OrderedDict
 from django.test import SimpleTestCase
 
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
-from .structures.linked_queue import LinkedQueue
+from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
 from .structures.recent_items_ring import RecentItemsRing
 from .structures.rolling_extremes_window import RollingExtremesWindow
@@ -631,16 +631,16 @@ class LeastRecentlyUsedCacheTests(SimpleTestCase):
             self.assertEqual(len(cache), len(model))
 
 
-class LinkedQueueTests(SimpleTestCase):
+class FirstInFirstOutQueueTests(SimpleTestCase):
     def test_new_queue_is_empty(self):
-        queue = LinkedQueue()
+        queue = FirstInFirstOutQueue()
 
         self.assertEqual(len(queue), 0)
         self.assertTrue(queue.is_empty())
         self.assertEqual(list(queue), [])
 
     def test_empty_queue_rejects_dequeue_and_peek(self):
-        queue = LinkedQueue()
+        queue = FirstInFirstOutQueue()
 
         with self.assertRaises(IndexError):
             queue.dequeue()
@@ -648,7 +648,7 @@ class LinkedQueueTests(SimpleTestCase):
             queue.peek()
 
     def test_first_in_first_out_order(self):
-        queue = LinkedQueue()
+        queue = FirstInFirstOutQueue()
         for value in ("a", "b", "c"):
             queue.enqueue(value)
 
@@ -656,26 +656,26 @@ class LinkedQueueTests(SimpleTestCase):
         self.assertTrue(queue.is_empty())
 
     def test_peek_does_not_remove(self):
-        queue = LinkedQueue([1, 2])
+        queue = FirstInFirstOutQueue([1, 2])
 
         self.assertEqual(queue.peek(), 1)
         self.assertEqual(queue.peek(), 1)
         self.assertEqual(len(queue), 2)
 
     def test_constructor_accepts_an_iterable_in_order(self):
-        queue = LinkedQueue(range(4))
+        queue = FirstInFirstOutQueue(range(4))
 
         self.assertEqual(list(queue), [0, 1, 2, 3])
         self.assertEqual(len(queue), 4)
 
     def test_iteration_does_not_consume_the_queue(self):
-        queue = LinkedQueue("xyz")
+        queue = FirstInFirstOutQueue("xyz")
 
         self.assertEqual(list(queue), list(queue))
         self.assertEqual(len(queue), 3)
 
     def test_emptying_and_refilling_keeps_the_links_consistent(self):
-        queue = LinkedQueue()
+        queue = FirstInFirstOutQueue()
         queue.enqueue(1)
         self.assertEqual(queue.dequeue(), 1)
         self.assertTrue(queue.is_empty())
@@ -690,13 +690,13 @@ class LinkedQueueTests(SimpleTestCase):
             queue.dequeue()
 
     def test_none_and_falsy_items_are_valid(self):
-        queue = LinkedQueue([None, 0, ""])
+        queue = FirstInFirstOutQueue([None, 0, ""])
 
         self.assertEqual(len(queue), 3)
         self.assertEqual([queue.dequeue() for _ in range(3)], [None, 0, ""])
 
     def test_clear_empties_the_queue_and_it_can_be_reused(self):
-        queue = LinkedQueue(range(5))
+        queue = FirstInFirstOutQueue(range(5))
 
         queue.clear()
 
@@ -708,7 +708,7 @@ class LinkedQueueTests(SimpleTestCase):
 
     def test_matches_a_plain_list_under_random_operations(self):
         generator = random.Random(5)
-        queue = LinkedQueue()
+        queue = FirstInFirstOutQueue()
         reference = []
         for step in range(2000):
             if reference and generator.random() < 0.45:
@@ -723,7 +723,7 @@ class LinkedQueueTests(SimpleTestCase):
         self.assertEqual(list(queue), reference)
 
     def test_large_queue_dequeues_everything_in_order(self):
-        queue = LinkedQueue(range(10000))
+        queue = FirstInFirstOutQueue(range(10000))
 
         self.assertEqual([queue.dequeue() for _ in range(10000)], list(range(10000)))
         self.assertTrue(queue.is_empty())

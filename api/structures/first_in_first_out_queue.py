@@ -6,7 +6,7 @@ class _QueueNode:
         self.next = None
 
 
-class LinkedQueue:
+class FirstInFirstOutQueue:
     """Cola FIFO (el primero en entrar es el primero en salir) con nodos enlazados.
 
     Guarda referencias al primer y al último nodo. Encolar enlaza detrás del
@@ -72,4 +72,4 @@ class LinkedQueue:
         self._size = 0
 
     def __repr__(self):
-        return f"LinkedQueue({list(self)!r})"
+        return f"FirstInFirstOutQueue({list(self)!r})"
