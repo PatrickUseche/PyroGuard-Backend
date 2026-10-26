@@ -1,5 +1,5 @@
-class ListNode:
-    """Nodo de ``DoublyLinkedList``; ``value`` es lo que guarda el usuario."""
+class ChainLink:
+    """Nodo de ``BidirectionalChain``; ``value`` es lo que guarda el usuario."""
 
     __slots__ = ("value", "prev", "next", "_owner")
 
@@ -10,10 +10,10 @@ class ListNode:
         self._owner = None
 
     def __repr__(self):
-        return f"ListNode({self.value!r})"
+        return f"ChainLink({self.value!r})"
 
 
-class DoublyLinkedList:
+class BidirectionalChain:
     """Lista doblemente enlazada con nodos centinela en ambos extremos.
 
     Los centinelas evitan los casos especiales de lista vacía o de un solo
@@ -32,8 +32,8 @@ class DoublyLinkedList:
     """
 
     def __init__(self):
-        self._head = ListNode(None)  # centinela antes del primero
-        self._tail = ListNode(None)  # centinela después del último
+        self._head = ChainLink(None)  # centinela antes del primero
+        self._tail = ChainLink(None)  # centinela después del último
         self._head.next = self._tail
         self._tail.prev = self._head
         self._size = 0
@@ -61,18 +61,18 @@ class DoublyLinkedList:
         self._size -= 1
 
     def _check_owned(self, node):
-        if not isinstance(node, ListNode) or node._owner is not self:
+        if not isinstance(node, ChainLink) or node._owner is not self:
             raise ValueError("El nodo no pertenece a esta lista.")
 
     def push_front(self, value):
         """Inserta al inicio y devuelve el nodo creado."""
-        node = ListNode(value)
+        node = ChainLink(value)
         self._link_after(self._head, node)
         return node
 
     def push_back(self, value):
         """Inserta al final y devuelve el nodo creado."""
-        node = ListNode(value)
+        node = ChainLink(value)
         self._link_after(self._tail.prev, node)
         return node
 
@@ -157,4 +157,4 @@ class DoublyLinkedList:
         self._size = 0
 
     def __repr__(self):
-        return f"DoublyLinkedList({list(self)!r})"
+        return f"BidirectionalChain({list(self)!r})"

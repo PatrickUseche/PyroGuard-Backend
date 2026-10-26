@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 from django.test import SimpleTestCase
 
-from .structures.linked_list import DoublyLinkedList, ListNode
+from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.linked_queue import LinkedQueue
 from .structures.lru_cache import LRUCache
 from .structures.recent_items_ring import RecentItemsRing
@@ -289,9 +289,9 @@ class RollingExtremesWindowTests(SimpleTestCase):
         )
 
 
-class DoublyLinkedListTests(SimpleTestCase):
+class BidirectionalChainTests(SimpleTestCase):
     def build(self, *values):
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
         nodes = [linked.push_back(value) for value in values]
         return linked, nodes
 
@@ -299,7 +299,7 @@ class DoublyLinkedListTests(SimpleTestCase):
         return list(linked), list(linked.reversed())
 
     def test_new_list_is_empty(self):
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
 
         self.assertEqual(len(linked), 0)
         self.assertTrue(linked.is_empty())
@@ -307,7 +307,7 @@ class DoublyLinkedListTests(SimpleTestCase):
         self.assertEqual(list(linked.reversed()), [])
 
     def test_empty_list_rejects_reads_and_pops(self):
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
 
         for operation in (
             linked.pop_front,
@@ -322,7 +322,7 @@ class DoublyLinkedListTests(SimpleTestCase):
                     operation()
 
     def test_push_front_and_push_back_keep_order_in_both_directions(self):
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
         linked.push_back(2)
         linked.push_back(3)
         linked.push_front(1)
@@ -335,11 +335,11 @@ class DoublyLinkedListTests(SimpleTestCase):
         self.assertEqual(len(linked), 4)
 
     def test_pushes_return_the_created_node(self):
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
 
         node = linked.push_back("a")
 
-        self.assertIsInstance(node, ListNode)
+        self.assertIsInstance(node, ChainLink)
         self.assertEqual(node.value, "a")
         self.assertIs(linked.front_node(), node)
         self.assertIs(linked.back_node(), node)
@@ -424,7 +424,7 @@ class DoublyLinkedListTests(SimpleTestCase):
 
     def test_matches_a_plain_list_under_random_operations(self):
         generator = random.Random(11)
-        linked = DoublyLinkedList()
+        linked = BidirectionalChain()
         reference = []
         nodes = []  # nodos vivos, en el mismo orden que ``reference``
         for step in range(800):

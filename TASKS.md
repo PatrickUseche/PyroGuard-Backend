@@ -66,7 +66,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
 - [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
 - [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
-- [ ] refactor(structures): renombrar `DoublyLinkedList` y `ListNode` a `BidirectionalChain` y `ChainLink` [2.27]
+- [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
 - [ ] refactor(structures): renombrar `LRUCache` a `LeastRecentlyUsedCache` [2.28]
 - [ ] refactor(structures): renombrar `LinkedQueue` a `FirstInFirstOutQueue` [2.29]
 - [ ] docs: `docs/ESTRUCTURAS_DE_DATOS.md` con cada estructura, sus complejidades y dónde se usa [2.24]

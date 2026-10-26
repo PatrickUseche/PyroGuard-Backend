@@ -1,4 +1,4 @@
-from .linked_list import DoublyLinkedList
+from .bidirectional_chain import BidirectionalChain
 
 
 class LRUCache:
@@ -24,7 +24,7 @@ class LRUCache:
             raise ValueError("La capacidad debe ser un entero mayor o igual que 1.")
         self._capacity = capacity
         self._nodes = {}  # clave -> nodo de ``_order``
-        self._order = DoublyLinkedList()  # valores (clave, valor); frente = más reciente
+        self._order = BidirectionalChain()  # valores (clave, valor); frente = más reciente
         self._hits = 0
         self._misses = 0
 
