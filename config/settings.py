@@ -51,6 +51,19 @@ def _env_positive_float(name, default):
     return parsed_value
 
 
+def _env_positive_int(name, default):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        parsed_value = int(value)
+    except ValueError:
+        raise ImproperlyConfigured(f"{name} debe ser un entero.") from None
+    if parsed_value < 1:
+        raise ImproperlyConfigured(f"{name} debe ser un entero mayor o igual que 1.")
+    return parsed_value
+
+
 def _env_rate(name, default):
     value = os.getenv(name, "").strip()
     if not value:
@@ -257,6 +270,8 @@ ALERT_ON_WARNING = _env_bool("ALERT_ON_WARNING", False)
 AUTO_REGISTER_NODES = _env_bool("AUTO_REGISTER_NODES", False)
 # Con False, las consultas GET también exigen token (para cuando el frontend tenga login).
 PUBLIC_READ_ACCESS = _env_bool("PUBLIC_READ_ACCESS", True)
+# Cuántas lecturas recientes guarda en memoria cada nodo (ver services/live_readings.py).
+RECENT_READINGS_PER_NODE = _env_positive_int("RECENT_READINGS_PER_NODE", 50)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.

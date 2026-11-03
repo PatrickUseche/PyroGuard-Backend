@@ -55,6 +55,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `NODE_OFFLINE_THRESHOLD_SECONDS` | Segundos sin comunicación para marcar OFFLINE | `300` |
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
+| `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
