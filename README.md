@@ -105,6 +105,19 @@ súbelo (p. ej. `31536000`). `SECURE_HSTS_INCLUDE_SUBDOMAINS` y `SECURE_HSTS_PRE
 actívalos si **todos** los subdominios deben servirse por HTTPS. Para revisarlo:
 `python manage.py check --deploy` (con `DEBUG=False`; solo deben quedar esas dos advertencias).
 
+## Medición de las estructuras
+
+`python manage.py benchmark_structures` compara cada estructura de `api/structures/` con la consulta equivalente en
+la base de datos (por ejemplo, el buffer circular frente a `ORDER BY timestamp DESC LIMIT 50`). Antes de medir comprueba
+que estructura y base dan **el mismo resultado**, y todo ocurre dentro de una transacción que se deshace: no deja datos.
+
+```powershell
+python manage.py benchmark_structures                              # 1000 y 10000 lecturas
+python manage.py benchmark_structures --sizes 1000,10000,50000 --markdown
+```
+
+Los resultados y su análisis están en `docs/BENCHMARKS.md`.
+
 ## Docker
 
 Con Docker y Docker Compose se levanta todo sin instalar Python ni PostgreSQL: el backend, PyroGuard-IA y
