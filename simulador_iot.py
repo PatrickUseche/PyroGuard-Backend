@@ -45,6 +45,12 @@ def parse_args():
         default=os.getenv("INGEST_API_KEY", ""),
         help="Clave API de ingesta (por defecto, INGEST_API_KEY)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Semilla del generador: con la misma semilla se repiten los mismos valores y escenarios",
+    )
     args = parser.parse_args()
     if args.interval <= 0:
         parser.error("--interval debe ser mayor que cero.")
@@ -60,33 +66,33 @@ def node_ids(args):
     return [f"{args.prefix}{number:03d}" for number in range(1, args.nodes + 1)]
 
 
-def generate_simulated_data(node_id, scenario="random"):
+def generate_simulated_data(node_id, scenario="random", rng=random):
     """Genera un escenario; los límites siguen risk_rules.py del prototipo."""
     selected_scenario = scenario
     if scenario == "random":
-        selected_scenario = random.choices(
+        selected_scenario = rng.choices(
             ("normal", "warning", "fire"),
             weights=(85, 10, 5),
             k=1,
         )[0]
 
-    humidity = round(random.uniform(40, 80), 1)
-    gas = round(random.uniform(0, 15), 1)
+    humidity = round(rng.uniform(40, 80), 1)
+    gas = round(rng.uniform(0, 15), 1)
     if selected_scenario == "normal":
-        temperature = round(random.uniform(15, 30), 1)
-        smoke = round(random.uniform(10, 30), 1)
+        temperature = round(rng.uniform(15, 30), 1)
+        smoke = round(rng.uniform(10, 30), 1)
         flame = False
     elif selected_scenario == "warning":
-        if random.choice((True, False)):
-            temperature = round(random.uniform(TEMP_WARNING, TEMP_FIRE - 5), 1)
-            smoke = round(random.uniform(10, SMOKE_WARNING - 1), 1)
+        if rng.choice((True, False)):
+            temperature = round(rng.uniform(TEMP_WARNING, TEMP_FIRE - 5), 1)
+            smoke = round(rng.uniform(10, SMOKE_WARNING - 1), 1)
         else:
-            temperature = round(random.uniform(15, TEMP_WARNING - 1), 1)
-            smoke = round(random.uniform(SMOKE_WARNING, SMOKE_FIRE - 5), 1)
+            temperature = round(rng.uniform(15, TEMP_WARNING - 1), 1)
+            smoke = round(rng.uniform(SMOKE_WARNING, SMOKE_FIRE - 5), 1)
         flame = False
     else:
-        temperature = round(random.uniform(TEMP_FIRE, 60), 1)
-        smoke = round(random.uniform(SMOKE_FIRE, 90), 1)
+        temperature = round(rng.uniform(TEMP_FIRE, 60), 1)
+        smoke = round(rng.uniform(SMOKE_FIRE, 90), 1)
         flame = True
 
     return {
@@ -121,16 +127,18 @@ def send_data(args, sleep=time.sleep, max_rounds=None):
     nodes = node_ids(args)
     print(
         f"Simulador PyroGuard para {', '.join(nodes)}; destino {args.url}; "
-        f"escenario {args.scenario}; intervalo {args.interval}s."
+        f"escenario {args.scenario}; intervalo {args.interval}s"
+        + (f"; semilla {args.seed}." if args.seed is not None else ".")
     )
     if not args.api_key:
         print("Aviso: no se enviará X-API-Key; el servidor debe permitir ingesta local.")
 
+    rng = random.Random(args.seed) if args.seed is not None else random
     rounds = 0
     try:
         while max_rounds is None or rounds < max_rounds:
             for node_id in nodes:
-                payload, scenario = generate_simulated_data(node_id, args.scenario)
+                payload, scenario = generate_simulated_data(node_id, args.scenario, rng)
                 print(
                     "SIMULADO | "
                     f"escenario={scenario} nodo={node_id} "
