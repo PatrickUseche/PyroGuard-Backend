@@ -83,7 +83,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(nodes): exponer el máximo y el mínimo de la ventana en `/nodes/{id}/status/` [3.5]
 - [x] test(nodes): pruebas de la ventana en el estado del nodo [3.6]
 - [x] feat(cache): LRU para `get_node_status`, con invalidación al ingerir una lectura [3.7]
-- [ ] feat(cache): LRU para el resumen del dashboard con caducidad corta [3.8]
+- [x] feat(cache): LRU para el resumen del dashboard con caducidad corta [3.8]
 - [ ] test(cache): pruebas de invalidación y de capacidad de las cachés [3.9]
 - [ ] feat(ingestion): filtro de Bloom y confirmación en base para descartar lecturas duplicadas [3.10]
 - [ ] test(ingestion): pruebas de lecturas duplicadas (mismo nodo y timestamp) [3.11]

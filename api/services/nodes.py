@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from api.models import Alert, Node, RiskAssessment, SensorReading, connection_status_at
 from api.serializers import SensorReadingSerializer
+from api.services.dashboard_cache import dashboard_cache
 from api.services.live_readings import live_readings
 from api.services.node_status_cache import node_status_cache
 
@@ -85,6 +86,14 @@ def get_node_status(node_id):
 
 
 def get_dashboard_summary():
+    summary = dashboard_cache.get()
+    if summary is None:
+        summary = _build_dashboard_summary()
+        dashboard_cache.put(summary)
+    return summary
+
+
+def _build_dashboard_summary():
     now = timezone.now()
     offline_cutoff = now - timezone.timedelta(
         seconds=settings.NODE_OFFLINE_THRESHOLD_SECONDS
@@ -146,6 +155,6 @@ def get_dashboard_summary():
             status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED]
         ).count(),
         overall_risk=overall_risk,
-        latest_readings=SensorReadingSerializer(latest_readings, many=True).data,
+        latest_readings=list(SensorReadingSerializer(latest_readings, many=True).data),
     )
     return counts
