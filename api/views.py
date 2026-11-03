@@ -16,6 +16,7 @@ from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicR
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import DuplicateReadingError, ingest_reading
 from .services.live_readings import live_readings
+from .services.node_search import node_search_index
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
 from .services.pagination import TOTAL_COUNT_HEADER, paginate
 from .throttles import IngestThrottle, ReadThrottle
@@ -78,6 +79,29 @@ class NodeRecentReadingsView(APIView):
             if not 1 <= limit <= capacity:
                 raise ParseError(f"'limit' debe estar entre 1 y {capacity}.")
         return Response(live_readings.recent(node, limit))
+
+
+class NodeSearchView(APIView):
+    """Busca nodos por el comienzo de su ``node_id`` (para autocompletar)."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+    default_limit = 20
+    max_limit = 100
+
+    def get(self, request):
+        prefix = request.query_params.get("prefix", "").strip()
+        raw_limit = request.query_params.get("limit")
+        limit = self.default_limit
+        if raw_limit is not None:
+            try:
+                limit = int(raw_limit)
+            except ValueError:
+                raise ParseError("'limit' debe ser un número entero.") from None
+            if not 1 <= limit <= self.max_limit:
+                raise ParseError(f"'limit' debe estar entre 1 y {self.max_limit}.")
+        return Response(
+            {"prefix": prefix, "results": node_search_index.search(prefix, limit)}
+        )
 
 
 class DashboardSummaryView(APIView):
