@@ -100,7 +100,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(nodes): zonas de riesgo: agrupar con Union-Find los nodos conectados que están en riesgo [3.22]
 - [x] feat(api): `GET /dashboard/zones/` [3.23]
 - [x] test(nodes): pruebas del grafo de nodos, de la propagación y de las zonas [3.24]
-- [ ] feat(cache): proteger con un candado (`threading.Lock`) las estructuras compartidas entre peticiones y documentar que cada worker tiene su copia [3.25]
+- [x] feat(cache): proteger con un candado (`threading.Lock`) las estructuras compartidas entre peticiones y documentar que cada worker tiene su copia [3.25]
 
 ## Fase 4 — Volumen y series
 
