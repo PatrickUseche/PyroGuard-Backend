@@ -295,6 +295,8 @@ DASHBOARD_CACHE_SECONDS = _env_non_negative_float("DASHBOARD_CACHE_SECONDS", 5.0
 DEDUPLICATE_READINGS = _env_bool("DEDUPLICATE_READINGS", True)
 # Cuántos saltos hacia los vecinos se avisa cuando un nodo entra en FIRE (0 lo desactiva).
 NEIGHBOR_WARNING_HOPS = _env_non_negative_int("NEIGHBOR_WARNING_HOPS", 2)
+# Días que se conservan las lecturas antes de que `purge_readings` las borre.
+READINGS_RETENTION_DAYS = _env_positive_int("READINGS_RETENTION_DAYS", 90)
 # Lecturas que recuerda el filtro antes de reiniciarse (ver services/duplicate_readings.py).
 DUPLICATE_FILTER_CAPACITY = _env_positive_int("DUPLICATE_FILTER_CAPACITY", 100000)
 
