@@ -75,10 +75,10 @@ def _env_rate(name, default):
     return value
 
 
-def _env_non_negative_int(name):
+def _env_non_negative_int(name, default=None):
     value = os.getenv(name, "").strip()
     if not value:
-        return None
+        return default
     try:
         parsed_value = int(value)
     except ValueError:
@@ -274,6 +274,8 @@ PUBLIC_READ_ACCESS = _env_bool("PUBLIC_READ_ACCESS", True)
 RECENT_READINGS_PER_NODE = _env_positive_int("RECENT_READINGS_PER_NODE", 50)
 # Cuántas lecturas cubre la ventana de temperatura máxima y mínima de cada nodo.
 TEMPERATURE_WINDOW_SIZE = _env_positive_int("TEMPERATURE_WINDOW_SIZE", 20)
+# Nodos cuyo /status/ se guarda en la caché LRU (0 la desactiva).
+NODE_STATUS_CACHE_SIZE = _env_non_negative_int("NODE_STATUS_CACHE_SIZE", 256)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.
