@@ -554,7 +554,14 @@ python simulador_iot.py --node SIM-001 --scenario normal
 python simulador_iot.py --node SIM-001 --scenario warning --interval 2
 python simulador_iot.py --node SIM-001 --scenario fire --api-key $env:INGEST_API_KEY
 python simulador_iot.py --url http://localhost:8000/api/readings/ --scenario random
+python simulador_iot.py --nodes 5 --scenario random             # SIM-001 ... SIM-005 a la vez
+python simulador_iot.py --nodes 3 --prefix BOSQUE- --seed 42    # BOSQUE-001..003, valores repetibles
 ```
+
+Con `--nodes N` (2 a 100) cada ronda envía una lectura por nodo, con los identificadores
+`PREFIJO001`, `PREFIJO002`... (`--prefix`, por defecto `SIM-`); los nodos deben existir o el backend debe
+tener `AUTO_REGISTER_NODES=True`. Con `--seed` los escenarios y valores se repiten exactamente
+(solo cambia la marca de tiempo), útil para reproducir un caso.
 
 Escenarios `normal`, `warning` y `fire` son reproducibles por categoría; sus
 mediciones varían dentro de rangos que corresponden a las reglas. `random`
