@@ -10,26 +10,33 @@ Límites que conviene conocer: el estado vive en el proceso, así que se pierde 
 reiniciar y cada worker de gunicorn tiene el suyo; el orden del buffer es el de
 llegada, no el del ``timestamp`` de la lectura.
 """
+import threading
+
 from django.conf import settings
 
 from api.models import SensorReading
 from api.serializers import SensorReadingSerializer
 from api.structures.recent_items_ring import RecentItemsRing
 from api.structures.rolling_extremes_window import RollingExtremesWindow
+from api.services.locking import synchronized
 
 
 class LiveReadingsStore:
     def __init__(self):
+        self._lock = threading.RLock()
         self._rings = {}
         self._windows = {}
 
+    @synchronized
     def clear(self):
         self._rings.clear()
         self._windows.clear()
 
+    @synchronized
     def is_loaded(self, node_id):
         return node_id in self._rings
 
+    @synchronized
     def load(self, node):
         """Llena el buffer del nodo con sus últimas lecturas de la base."""
         ring = RecentItemsRing(settings.RECENT_READINGS_PER_NODE)
@@ -43,6 +50,7 @@ class LiveReadingsStore:
         self._rings[node.node_id] = ring
         return ring
 
+    @synchronized
     def record(self, reading):
         """Agrega una lectura recién ingerida a lo que ya esté cargado del nodo."""
         node_id = reading.node.node_id
@@ -53,6 +61,7 @@ class LiveReadingsStore:
         if window is not None:
             window.push(reading.temperature)
 
+    @synchronized
     def recent(self, node, limit=None):
         """Lecturas del nodo de la más nueva a la más antigua, cargándolo si hace falta."""
         ring = self._rings.get(node.node_id)
@@ -62,9 +71,11 @@ class LiveReadingsStore:
         readings.reverse()
         return readings if limit is None else readings[:limit]
 
+    @synchronized
     def is_window_loaded(self, node_id):
         return node_id in self._windows
 
+    @synchronized
     def load_window(self, node_id):
         """Llena la ventana de temperatura del nodo con sus últimas lecturas."""
         window = RollingExtremesWindow(settings.TEMPERATURE_WINDOW_SIZE)
@@ -78,6 +89,7 @@ class LiveReadingsStore:
         self._windows[node_id] = window
         return window
 
+    @synchronized
     def temperature_window(self, node_id):
         """Máximo y mínimo de las últimas lecturas del nodo, o ``None`` si no tiene.
 

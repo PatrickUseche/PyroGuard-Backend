@@ -9,22 +9,26 @@ no genera señales, como que un nodo pase a OFFLINE por el simple paso del tiemp
 Cada worker tiene su propia caché y se pierde al reiniciar.
 """
 import copy
+import threading
 import time
 
 from django.conf import settings
 
 from api.structures.least_recently_used_cache import LeastRecentlyUsedCache
+from api.services.locking import synchronized
 
 _SUMMARY_KEY = "summary"
 
 
 class DashboardSummaryCache:
     def __init__(self, clock=time.monotonic):
+        self._lock = threading.RLock()
         self._clock = clock
         # Hoy solo hay un resumen, pero la LRU deja lista la caché para guardar
         # variantes (por ejemplo, un resumen por zona) sin crecer sin límite.
         self._lru = LeastRecentlyUsedCache(4)
 
+    @synchronized
     def get(self):
         """Devuelve una copia del resumen si sigue vigente; si no, ``None``."""
         if settings.DASHBOARD_CACHE_SECONDS <= 0:
@@ -38,17 +42,20 @@ class DashboardSummaryCache:
             return None
         return copy.deepcopy(summary)
 
+    @synchronized
     def put(self, summary):
         seconds = settings.DASHBOARD_CACHE_SECONDS
         if seconds > 0:
             self._lru.put(_SUMMARY_KEY, (self._clock() + seconds, copy.deepcopy(summary)))
 
+    @synchronized
     def invalidate(self):
         self._lru.discard(_SUMMARY_KEY)
 
     clear = invalidate
 
     @property
+    @synchronized
     def stats(self):
         return {"hits": self._lru.hits, "misses": self._lru.misses, "size": len(self._lru)}
 

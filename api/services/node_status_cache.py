@@ -10,14 +10,17 @@ de la ingesta. El estado vive en el proceso: cada worker tiene su caché y se
 pierde al reiniciar.
 """
 import copy
+import threading
 
 from django.conf import settings
 
 from api.structures.least_recently_used_cache import LeastRecentlyUsedCache
+from api.services.locking import synchronized
 
 
 class NodeStatusCache:
     def __init__(self):
+        self._lock = threading.RLock()
         self._lru = None
 
     def _cache(self):
@@ -28,6 +31,7 @@ class NodeStatusCache:
             self._lru = LeastRecentlyUsedCache(capacity)
         return self._lru
 
+    @synchronized
     def get(self, node_id):
         """Devuelve una copia de lo guardado para el nodo, o ``None`` si no hay."""
         cache = self._cache()
@@ -36,20 +40,24 @@ class NodeStatusCache:
         stored = cache.get(node_id)
         return None if stored is None else copy.deepcopy(stored)
 
+    @synchronized
     def put(self, node_id, status):
         cache = self._cache()
         if cache is not None:
             cache.put(node_id, copy.deepcopy(status))
 
+    @synchronized
     def invalidate(self, node_id):
         if self._lru is not None:
             self._lru.discard(node_id)
 
+    @synchronized
     def clear(self):
         if self._lru is not None:
             self._lru.clear()
 
     @property
+    @synchronized
     def stats(self):
         """Aciertos y fallos acumulados, útiles para medir si la caché sirve."""
         if self._lru is None:

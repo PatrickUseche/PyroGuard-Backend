@@ -13,12 +13,14 @@ un duplicado de una lectura muy antigua (fuera de esa ventana) o de otro worker
 podría no detectarse; en el peor caso se guarda repetida, nunca se pierde un dato.
 Cuando el filtro recibe más lecturas de las que fue dimensionado, se reconstruye.
 """
+import threading
 from datetime import timezone
 
 from django.conf import settings
 
 from api.models import SensorReading
 from api.structures.duplicate_bloom_filter import DuplicateBloomFilter
+from api.services.locking import synchronized
 
 FALSE_POSITIVE_RATE = 0.01
 
@@ -30,9 +32,11 @@ def reading_key(node_id, timestamp):
 
 class DuplicateReadingDetector:
     def __init__(self):
+        self._lock = threading.RLock()
         self._filter = None
         self._capacity = None
 
+    @synchronized
     def clear(self):
         self._filter = None
         self._capacity = None
@@ -58,6 +62,7 @@ class DuplicateReadingDetector:
         for node_id, timestamp in latest:
             self._filter.add(reading_key(node_id, timestamp))
 
+    @synchronized
     def find(self, node_id, timestamp):
         """Devuelve la lectura ya guardada con ese nodo y momento, o ``None``."""
         if not settings.DEDUPLICATE_READINGS:
@@ -71,6 +76,7 @@ class DuplicateReadingDetector:
             .first()
         )
 
+    @synchronized
     def remember(self, node_id, timestamp):
         """Anota una lectura recién guardada para detectar sus repeticiones."""
         if settings.DEDUPLICATE_READINGS:
