@@ -19,6 +19,7 @@ from .services.alert_ordering import order_by_urgency
 from .services.live_readings import live_readings
 from .services.node_graph import node_graph
 from .services.node_search import node_search_index
+from .services.risk_zones import get_risk_zones
 from .services.nodes import (
     get_dashboard_summary,
     get_node_status,
@@ -211,6 +212,15 @@ class DashboardTopRiskView(APIView):
             if not 1 <= k <= self.max_k:
                 raise ParseError(f"'k' debe estar entre 1 y {self.max_k}.")
         return Response(get_top_risk_nodes(k))
+
+
+class DashboardZonesView(APIView):
+    """Grupos de nodos vecinos que están en riesgo a la vez."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+
+    def get(self, request):
+        return Response(get_risk_zones())
 
 
 class ReceiveMeasurementView(APIView):

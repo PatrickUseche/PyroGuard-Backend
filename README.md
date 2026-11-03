@@ -102,6 +102,7 @@ se registra una advertencia.
 | `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
 | `GET /dashboard/top-risk/?k=` | Los `k` nodos de mayor riesgo actual (1 a 50, 5 por defecto): primero `FIRE`, luego `WARNING` y `NORMAL`, y a igual nivel la mayor probabilidad de la IA. Cada nodo trae `current_risk`, `ai_probability`, `connection_status` y `current_risk_stale` |
+| `GET /dashboard/zones/` | Zonas de riesgo: grupos de nodos vecinos conectados que están en `WARNING` o `FIRE` a la vez (solo nodos online), de la más grave a la menos grave. Cada zona trae `zone_id`, `risk_level`, `size` y `nodes` |
 | `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo |
 | `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial; `/alerts/` acepta `limit` (por defecto 100) y `offset`. `/alerts/active/` las ordena por urgencia: `FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero |
 | `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar estado con autenticación |
