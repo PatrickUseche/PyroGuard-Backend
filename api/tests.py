@@ -46,13 +46,21 @@ _unlimited_rates = patch.object(
 )
 
 
+# Las pruebas deshacen sus datos con un rollback que no emite señales, así que una
+# caché del resumen tomada en una prueba se vería en la siguiente. Su
+# comportamiento se prueba aparte, en test_live_state.py.
+_no_dashboard_cache = override_settings(DASHBOARD_CACHE_SECONDS=0)
+
+
 def setUpModule():
     # Los límites reales se prueban en ThrottlingTests; el resto de la suite
     # no debe toparse con ellos porque comparten la caché de la IP de pruebas.
     _unlimited_rates.start()
+    _no_dashboard_cache.enable()
 
 
 def tearDownModule():
+    _no_dashboard_cache.disable()
     _unlimited_rates.stop()
 
 

@@ -6,7 +6,9 @@ from django.utils import timezone
 from api.models import Node, RiskAssessment
 from api.services.ai_client import AIPrediction, request_prediction
 from api.services.alerts import maybe_create_alert
+from api.services.dashboard_cache import dashboard_cache
 from api.services.live_readings import live_readings
+from api.services.node_status_cache import node_status_cache
 from api.services.risk_rules import evaluate_risk
 
 
@@ -70,6 +72,11 @@ def ingest_reading(serializer):
             "se conserva la lectura.",
             reading.pk,
         )
+
+    # Algunas escrituras (como el ``update`` de la última comunicación) no emiten
+    # señales, así que al terminar se descarta el estado cacheado del nodo.
+    node_status_cache.invalidate(reading.node.node_id)
+    dashboard_cache.invalidate()
 
     try:
         live_readings.record(reading)

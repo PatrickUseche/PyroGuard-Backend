@@ -4,6 +4,16 @@ from django.db import models
 from django.utils import timezone
 
 
+def connection_status_at(last_communication):
+    """UNKNOWN, ONLINE u OFFLINE según cuándo fue la última comunicación."""
+    if last_communication is None:
+        return "UNKNOWN"
+
+    offline_threshold = settings.NODE_OFFLINE_THRESHOLD_SECONDS
+    elapsed = (timezone.now() - last_communication).total_seconds()
+    return "OFFLINE" if elapsed > offline_threshold else "ONLINE"
+
+
 class Node(models.Model):
     node_id = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=100, blank=True)
@@ -27,12 +37,7 @@ class Node(models.Model):
 
     @property
     def connection_status(self):
-        if self.last_communication is None:
-            return "UNKNOWN"
-
-        offline_threshold = settings.NODE_OFFLINE_THRESHOLD_SECONDS
-        elapsed = (timezone.now() - self.last_communication).total_seconds()
-        return "OFFLINE" if elapsed > offline_threshold else "ONLINE"
+        return connection_status_at(self.last_communication)
 
     def __str__(self):
         return self.name or self.node_id

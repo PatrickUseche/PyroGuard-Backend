@@ -291,7 +291,7 @@ class TemperatureWindowTests(LiveStateTestCase):
         self.status()
 
         with patch.object(SensorReading.objects, "filter", wraps=SensorReading.objects.filter) as spy:
-            live_readings.temperature_window(self.node)
+            live_readings.temperature_window(self.node.node_id)
 
         spy.assert_not_called()
 
