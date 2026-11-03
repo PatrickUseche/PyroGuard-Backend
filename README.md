@@ -96,6 +96,7 @@ se registra una advertencia.
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
 | `GET /nodes/search/?prefix=` | Identificadores de nodo que empiezan por `prefix` (sin distinguir mayúsculas, orden alfabético); `limit` de 1 a 100, 20 por defecto. Responde `{prefix, results}` desde un índice en memoria |
 | `GET /nodes/{node_id}/links/`, `POST /nodes/{node_id}/links/` | Listar los vecinos directos del nodo / registrar uno con `{"neighbor": "node_id"}` (autenticado; `409` si ya lo eran) |
+| `GET /nodes/{node_id}/neighbors/?hops=` | Nodos alcanzables en `hops` saltos o menos (1 a 10, 1 por defecto), con los saltos de cada uno, calculados con un recorrido en anchura sobre el grafo de vecinos |
 | `DELETE /nodes/{node_id}/links/{neighbor_id}/` | Quitar el vínculo entre dos nodos (autenticado) |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
 | `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
@@ -148,6 +149,15 @@ El filtro se rellena con las últimas lecturas la primera vez que se usa y se re
 al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo, así que un duplicado
 de una lectura muy antigua o llegado a otro worker puede guardarse repetido. Se
 desactiva con `DEDUPLICATE_READINGS=False`.
+
+## Vecinos y propagación del riesgo
+
+Los nodos cercanos se enlazan con `POST /nodes/{id}/links/`. Con esos enlaces se arma un
+grafo en memoria (un worker, una copia) que responde `/nodes/{id}/neighbors/?hops=` con
+un recorrido en anchura. Cuando una lectura deja un nodo en `FIRE`, la ingesta avisa a
+sus vecinos hasta `NEIGHBOR_WARNING_HOPS` saltos: hoy el aviso se registra en el log
+(`Nodo X en FIRE: aviso a N nodo(s) vecino(s)...`) y es el punto de enganche de las
+notificaciones.
 
 ## Acceso de lectura
 

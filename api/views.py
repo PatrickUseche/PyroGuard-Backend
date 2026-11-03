@@ -125,6 +125,32 @@ class NodeLinksView(APIView):
         )
 
 
+class NodeNeighborsView(APIView):
+    """Nodos alcanzables desde un nodo en ``hops`` saltos o menos (BFS)."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+    default_hops = 1
+    max_hops = 10
+
+    def get(self, request, node_id):
+        get_object_or_404(Node, node_id=node_id)
+        raw_hops = request.query_params.get("hops")
+        hops = self.default_hops
+        if raw_hops is not None:
+            try:
+                hops = int(raw_hops)
+            except ValueError:
+                raise ParseError("'hops' debe ser un número entero.") from None
+            if not 1 <= hops <= self.max_hops:
+                raise ParseError(f"'hops' debe estar entre 1 y {self.max_hops}.")
+        reachable = node_graph.neighbors_within(node_id, hops)
+        neighbors = [
+            {"node_id": neighbor, "hops": distance}
+            for neighbor, distance in sorted(reachable.items(), key=lambda item: (item[1], item[0]))
+        ]
+        return Response({"node_id": node_id, "hops": hops, "neighbors": neighbors})
+
+
 class NodeLinkDetailView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
