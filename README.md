@@ -57,6 +57,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
 | `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `NODE_STATUS_CACHE_SIZE` | Nodos cuyo `/status/` se guarda en la caché LRU en memoria (entero ≥ 0; 0 la desactiva) | `256` |
+| `READINGS_RETENTION_DAYS` | Días que se conservan las lecturas antes de que `purge_readings` las borre (entero ≥ 1) | `90` |
 | `NEIGHBOR_WARNING_HOPS` | Saltos hacia los vecinos a los que se avisa cuando un nodo entra en `FIRE` (entero ≥ 0; 0 lo desactiva) | `2` |
 | `DEDUPLICATE_READINGS` | Descarta las lecturas repetidas (mismo nodo y `timestamp`) | `True` |
 | `DUPLICATE_FILTER_CAPACITY` | Lecturas que recuerda el filtro de Bloom antes de reconstruirse (entero ≥ 1) | `100000` |
@@ -135,6 +136,22 @@ curl http://localhost:8000/api/nodes/SIM-001/status/
 curl "http://localhost:8000/api/readings/?node_id=SIM-001&range=24h&limit=50&order=desc"
 curl http://localhost:8000/api/dashboard/summary/
 ```
+
+## Retención de lecturas
+
+Las lecturas crecen sin parar, así que el comando `purge_readings` borra las anteriores a
+`READINGS_RETENTION_DAYS` (90 por defecto). Sus evaluaciones de riesgo se borran con ellas,
+pero **las lecturas que originaron una alerta se conservan** para no perder el historial.
+
+```bash
+python manage.py purge_readings --dry-run      # solo cuenta lo que borraría
+python manage.py purge_readings                # borra con la retención configurada
+python manage.py purge_readings --days 30      # retención puntual
+python manage.py purge_readings --batch-size 500
+```
+
+Borra por lotes (`--batch-size`, 1000 por defecto) para no bloquear la base. Conviene
+programarlo a diario (por ejemplo, un Cron Job de Render); el comando no se ejecuta solo.
 
 ## Lecturas duplicadas
 
