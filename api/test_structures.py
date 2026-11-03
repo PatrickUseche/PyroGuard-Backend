@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
+from .structures.prefix_trie import PrefixTrie
 from .structures.priority_min_heap import PriorityMinHeap
 from .structures.recent_items_ring import RecentItemsRing
 from .structures.rolling_extremes_window import RollingExtremesWindow
@@ -884,3 +885,125 @@ class PriorityMinHeapTests(SimpleTestCase):
             with self.subTest(k=k):
                 with self.assertRaises(ValueError):
                     PriorityMinHeap.smallest([1, 2], k)
+
+
+class PrefixTrieTests(SimpleTestCase):
+    def setUp(self):
+        self.trie = PrefixTrie()
+        for word in ("nodo-1", "nodo-12", "nodo-2", "sensor-a", "Nodo-3"):
+            self.trie.insert(word)
+
+    def test_new_trie_is_empty(self):
+        trie = PrefixTrie()
+
+        self.assertEqual(len(trie), 0)
+        self.assertEqual(trie.with_prefix(""), [])
+        self.assertFalse(trie.contains("nodo"))
+
+    def test_insert_counts_only_new_words(self):
+        trie = PrefixTrie()
+
+        self.assertTrue(trie.insert("pino"))
+        self.assertFalse(trie.insert("pino"))
+        self.assertFalse(trie.insert("PINO"))
+        self.assertEqual(len(trie), 1)
+
+    def test_empty_or_non_text_words_are_rejected(self):
+        with self.assertRaises(ValueError):
+            self.trie.insert("")
+        for value in (None, 5, b"nodo"):
+            with self.subTest(value=value):
+                with self.assertRaises(TypeError):
+                    self.trie.insert(value)
+                with self.assertRaises(TypeError):
+                    self.trie.contains(value)
+                with self.assertRaises(TypeError):
+                    self.trie.with_prefix(value)
+
+    def test_contains_needs_the_whole_word(self):
+        self.assertTrue(self.trie.contains("nodo-1"))
+        self.assertTrue("nodo-12" in self.trie)
+        self.assertFalse(self.trie.contains("nodo"))
+        self.assertFalse(self.trie.contains("nodo-123"))
+
+    def test_prefix_returns_every_word_in_alphabetical_order(self):
+        self.assertEqual(
+            self.trie.with_prefix("nodo-1"),
+            ["nodo-1", "nodo-12"],
+        )
+        self.assertEqual(
+            self.trie.with_prefix("nodo"),
+            ["nodo-1", "nodo-12", "nodo-2", "Nodo-3"],
+        )
+
+    def test_empty_prefix_returns_everything(self):
+        self.assertEqual(len(self.trie.with_prefix("")), 5)
+        self.assertEqual(self.trie.with_prefix("")[0], "nodo-1")
+
+    def test_unknown_prefix_returns_nothing(self):
+        self.assertEqual(self.trie.with_prefix("zzz"), [])
+        self.assertEqual(self.trie.with_prefix("nodo-9"), [])
+
+    def test_search_ignores_case_but_keeps_the_original_spelling(self):
+        self.assertTrue(self.trie.contains("NODO-3"))
+        self.assertEqual(self.trie.with_prefix("NODO-3"), ["Nodo-3"])
+        self.assertEqual(self.trie.with_prefix("Sen"), ["sensor-a"])
+
+    def test_limit_cuts_the_results(self):
+        self.assertEqual(self.trie.with_prefix("nodo", limit=2), ["nodo-1", "nodo-12"])
+        self.assertEqual(self.trie.with_prefix("nodo", limit=0), [])
+        self.assertEqual(len(self.trie.with_prefix("nodo", limit=99)), 4)
+
+    def test_invalid_limit_is_rejected(self):
+        for limit in (-1, 1.5, "2", True):
+            with self.subTest(limit=limit):
+                with self.assertRaises(ValueError):
+                    self.trie.with_prefix("nodo", limit=limit)
+
+    def test_delete_removes_only_that_word(self):
+        self.assertTrue(self.trie.delete("nodo-1"))
+
+        self.assertFalse(self.trie.contains("nodo-1"))
+        self.assertTrue(self.trie.contains("nodo-12"))
+        self.assertEqual(self.trie.with_prefix("nodo-1"), ["nodo-12"])
+        self.assertEqual(len(self.trie), 4)
+
+    def test_delete_of_a_missing_word_or_a_bare_prefix_does_nothing(self):
+        self.assertFalse(self.trie.delete("nodo"))
+        self.assertFalse(self.trie.delete("nada"))
+        self.assertFalse(self.trie.delete("nodo-123"))
+        self.assertEqual(len(self.trie), 5)
+
+    def test_delete_prunes_empty_branches(self):
+        trie = PrefixTrie()
+        trie.insert("abc")
+        trie.delete("abc")
+
+        self.assertEqual(len(trie), 0)
+        self.assertEqual(trie._root.children, {})
+
+    def test_delete_keeps_branches_shared_with_other_words(self):
+        trie = PrefixTrie()
+        trie.insert("ab")
+        trie.insert("abc")
+        trie.delete("abc")
+
+        self.assertTrue(trie.contains("ab"))
+        self.assertEqual(trie.with_prefix("a"), ["ab"])
+
+    def test_a_deleted_word_can_be_inserted_again(self):
+        self.trie.delete("sensor-a")
+
+        self.assertTrue(self.trie.insert("Sensor-A"))
+        self.assertEqual(self.trie.with_prefix("sensor"), ["Sensor-A"])
+
+    def test_matches_a_brute_force_search(self):
+        rng = random.Random(3)
+        words = {"".join(rng.choice("abc") for _ in range(rng.randint(1, 5))) for _ in range(60)}
+        trie = PrefixTrie()
+        for word in words:
+            trie.insert(word)
+
+        for prefix in ("", "a", "ab", "abc", "ca", "cc", "bbb"):
+            expected = sorted(word for word in words if word.startswith(prefix))
+            self.assertEqual(trie.with_prefix(prefix), expected)
