@@ -160,6 +160,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "api.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -257,7 +258,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.vercel\.app$",
 ]
 # Sin esto el navegador oculta estas cabeceras al JavaScript del frontend.
-CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After"]
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After", "X-Request-ID"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -357,7 +358,7 @@ LOGGING = {
     },
     "formatters": {
         "text": {
-            "format": "{levelname} {asctime} {name}: {message}",
+            "format": "{levelname} {asctime} {name} [{request_id}]: {message}",
             "style": "{",
         },
         "json": {"()": "api.logging_utils.JsonFormatter"},
