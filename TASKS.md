@@ -113,7 +113,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(readings): promedios de rango sobre la serie con sumas de prefijos [4.7]
 - [x] feat(api): `GET /readings/series/` que localiza el rango con búsqueda binaria [4.8] (lo consume el frontend [2.5])
 - [x] feat(api): combinar las series de varios nodos con una mezcla de K listas ordenadas (montículo) [4.9]
-- [ ] test(api): pruebas de la serie, del rango y de la mezcla de nodos [4.10]
+- [x] test(api): pruebas de la serie, del rango y de la mezcla de nodos [4.10]
 - [ ] docs(api): documentar `/readings/series/` en el README [4.11]
 - [ ] test(ingestion): medir la latencia de la ingesta con la IA lenta o caída [4.12]
 - [ ] feat(ingestion): cola FIFO de lecturas pendientes de evaluación por la IA, si [4.12] lo justifica [4.13]
