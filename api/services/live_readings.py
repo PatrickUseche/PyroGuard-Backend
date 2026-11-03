@@ -15,14 +15,17 @@ from django.conf import settings
 from api.models import SensorReading
 from api.serializers import SensorReadingSerializer
 from api.structures.recent_items_ring import RecentItemsRing
+from api.structures.rolling_extremes_window import RollingExtremesWindow
 
 
 class LiveReadingsStore:
     def __init__(self):
         self._rings = {}
+        self._windows = {}
 
     def clear(self):
         self._rings.clear()
+        self._windows.clear()
 
     def is_loaded(self, node_id):
         return node_id in self._rings
@@ -41,10 +44,14 @@ class LiveReadingsStore:
         return ring
 
     def record(self, reading):
-        """Agrega una lectura recién ingerida al buffer, si el nodo ya está cargado."""
-        ring = self._rings.get(reading.node.node_id)
+        """Agrega una lectura recién ingerida a lo que ya esté cargado del nodo."""
+        node_id = reading.node.node_id
+        ring = self._rings.get(node_id)
         if ring is not None:
             ring.append(dict(SensorReadingSerializer(reading).data))
+        window = self._windows.get(node_id)
+        if window is not None:
+            window.push(reading.temperature)
 
     def recent(self, node, limit=None):
         """Lecturas del nodo de la más nueva a la más antigua, cargándolo si hace falta."""
@@ -54,6 +61,40 @@ class LiveReadingsStore:
         readings = list(ring)
         readings.reverse()
         return readings if limit is None else readings[:limit]
+
+    def is_window_loaded(self, node_id):
+        return node_id in self._windows
+
+    def load_window(self, node):
+        """Llena la ventana de temperatura del nodo con sus últimas lecturas."""
+        window = RollingExtremesWindow(settings.TEMPERATURE_WINDOW_SIZE)
+        latest = (
+            SensorReading.objects.filter(node=node)
+            .order_by("-timestamp", "-pk")
+            .values_list("temperature", flat=True)[: window.size]
+        )
+        for temperature in reversed(list(latest)):
+            window.push(temperature)
+        self._windows[node.node_id] = window
+        return window
+
+    def temperature_window(self, node):
+        """Máximo y mínimo de las últimas lecturas del nodo, o ``None`` si no tiene.
+
+        Devuelve ``{"size": tamaño de la ventana, "readings": cuántas contiene,
+        "max": ..., "min": ...}``. Cuesta O(1) una vez cargada la ventana.
+        """
+        window = self._windows.get(node.node_id)
+        if window is None:
+            window = self.load_window(node)
+        if window.is_empty():
+            return None
+        return {
+            "size": window.size,
+            "readings": len(window),
+            "max": window.maximum,
+            "min": window.minimum,
+        }
 
 
 live_readings = LiveReadingsStore()

@@ -56,6 +56,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
 | `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
+| `TEMPERATURE_WINDOW_SIZE` | Lecturas que cubre la ventana de temperatura máxima y mínima de cada nodo (entero ≥ 1) | `20` |
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
@@ -256,6 +257,12 @@ dentro de `NODE_OFFLINE_THRESHOLD_SECONDS`, es `ONLINE`; si excede el umbral, es
 `OFFLINE`. Para nodos offline, `/status/` conserva el último riesgo conocido y
 marca `current_risk_stale=true`: es historial, no un riesgo actual confirmado.
 El resumen global considera solo nodos online.
+
+`/status/` incluye `temperature_window` con la temperatura máxima (`max`) y mínima
+(`min`) de las últimas `TEMPERATURE_WINDOW_SIZE` lecturas del nodo (`readings` dice
+cuántas contiene de verdad y `size` su capacidad), o `null` si el nodo no tiene
+lecturas. Se calcula en O(1) con una ventana en memoria que la primera consulta
+carga de la base y la ingesta mantiene al día; se pierde al reiniciar el proceso.
 
 Se crea alerta para `FIRE`; las de `WARNING` dependen de `ALERT_ON_WARNING`.
 Una alerta del mismo nodo y nivel en `ACTIVE` o `ACKNOWLEDGED` se actualiza:

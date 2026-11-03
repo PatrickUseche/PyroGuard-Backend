@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from api.models import Alert, Node, RiskAssessment, SensorReading
 from api.serializers import SensorReadingSerializer
+from api.services.live_readings import live_readings
 
 
 RISK_PRIORITY = {"NORMAL": 1, "WARNING": 2, "FIRE": 3}
@@ -57,6 +58,7 @@ def get_node_status(node_id):
             latest_assessment.risk_level if latest_assessment else None
         ),
         "current_risk_stale": connection_status == "OFFLINE",
+        "temperature_window": live_readings.temperature_window(node),
         "active_alerts_count": Alert.objects.filter(
             node=node,
             status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED],
