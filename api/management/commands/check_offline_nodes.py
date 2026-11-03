@@ -50,7 +50,7 @@ class Command(BaseCommand):
                 node=node,
                 status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED],
             )
-            .order_by("-level", "-created_at")  # FIRE antes que WARNING
+            .order_by("level", "-created_at")  # "FIRE" < "WARNING": el incendio primero
             .first()
         )
         if alert is None:
