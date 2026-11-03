@@ -101,6 +101,19 @@ def _env_non_negative_int(name, default=None):
     return parsed_value
 
 
+def _env_choice_list(name, choices, default):
+    values = _env_list(name)
+    if not values:
+        return list(default)
+    unknown = [value for value in values if value not in choices]
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{name} tiene canales desconocidos: {', '.join(unknown)}. "
+            f"Opciones: {', '.join(sorted(choices))}."
+        )
+    return list(dict.fromkeys(values))
+
+
 def _env_header_name(name):
     value = os.getenv(name, "").strip()
     if value and not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", value):
@@ -297,6 +310,21 @@ DEDUPLICATE_READINGS = _env_bool("DEDUPLICATE_READINGS", True)
 NEIGHBOR_WARNING_HOPS = _env_non_negative_int("NEIGHBOR_WARNING_HOPS", 2)
 # Días que se conservan las lecturas antes de que `purge_readings` las borre.
 READINGS_RETENTION_DAYS = _env_positive_int("READINGS_RETENTION_DAYS", 90)
+
+# Notificaciones (ver api/notifications). Canales: console, email y telegram.
+NOTIFICATION_CHANNELS = _env_choice_list(
+    "NOTIFICATION_CHANNELS", {"console", "email", "telegram"}, default=["console"]
+)
+NOTIFY_EMAIL_TO = _env_list("NOTIFY_EMAIL_TO")
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = _env_positive_int("EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "pyroguard@localhost")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 # Lecturas que recuerda el filtro antes de reiniciarse (ver services/duplicate_readings.py).
 DUPLICATE_FILTER_CAPACITY = _env_positive_int("DUPLICATE_FILTER_CAPACITY", 100000)
 
