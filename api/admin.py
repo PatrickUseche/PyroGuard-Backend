@@ -1,6 +1,30 @@
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib import admin
+from django.utils import timezone
 
 from .models import Alert, Node, NodeLink, NotificationOutbox, ReadingHourly, RiskAssessment, SensorReading
+
+
+class ConnectionStatusFilter(admin.SimpleListFilter):
+    """Filtra los nodos por su conexión, con el mismo umbral que usa la API."""
+
+    title = "conexión"
+    parameter_name = "connection"
+
+    def lookups(self, request, model_admin):
+        return [("ONLINE", "En línea"), ("OFFLINE", "Desconectado"), ("UNKNOWN", "Sin comunicación aún")]
+
+    def queryset(self, request, queryset):
+        cutoff = timezone.now() - timedelta(seconds=settings.NODE_OFFLINE_THRESHOLD_SECONDS)
+        if self.value() == "ONLINE":
+            return queryset.filter(last_communication__gte=cutoff)
+        if self.value() == "OFFLINE":
+            return queryset.filter(last_communication__lt=cutoff)
+        if self.value() == "UNKNOWN":
+            return queryset.filter(last_communication__isnull=True)
+        return queryset
 
 
 @admin.register(Node)
@@ -11,9 +35,12 @@ class NodeAdmin(admin.ModelAdmin):
         "connection_status",
         "is_active",
         "last_communication",
+        "created_at",
     )
-    list_filter = ("is_active",)
+    list_filter = (ConnectionStatusFilter, "is_active", "created_at")
     search_fields = ("node_id", "name", "description")
+    date_hierarchy = "created_at"
+    ordering = ("node_id",)
 
 
 @admin.register(SensorReading)
@@ -27,8 +54,16 @@ class SensorReadingAdmin(admin.ModelAdmin):
         "flame",
         "timestamp",
     )
-    list_filter = ("flame", "timestamp")
+    list_filter = (
+        ("node", admin.RelatedOnlyFieldListFilter),
+        "flame",
+        "assessment__risk_level",
+        "timestamp",
+    )
     search_fields = ("node__node_id", "node__name")
+    date_hierarchy = "timestamp"
+    list_select_related = ("node",)
+    list_per_page = 50
 
 
 @admin.register(RiskAssessment)
@@ -58,8 +93,15 @@ class AlertAdmin(admin.ModelAdmin):
         "acknowledged_at",
         "closed_at",
     )
-    list_filter = ("status", "level", "created_at")
+    list_filter = (
+        "status",
+        "level",
+        ("node", admin.RelatedOnlyFieldListFilter),
+        "created_at",
+    )
     search_fields = ("node__node_id", "node__name", "message")
+    date_hierarchy = "created_at"
+    list_select_related = ("node",)
 
 
 @admin.register(NodeLink)
