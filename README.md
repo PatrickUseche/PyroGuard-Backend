@@ -66,6 +66,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
+| `AI_ASYNC_EVALUATION` | Si es `True`, la ingesta no espera a la IA: deja la evaluación pendiente para `drain_ai_queue` (ver «Evaluación diferida de la IA») | `False` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
 | `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
