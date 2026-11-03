@@ -57,6 +57,8 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
 | `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `NODE_STATUS_CACHE_SIZE` | Nodos cuyo `/status/` se guarda en la caché LRU en memoria (entero ≥ 0; 0 la desactiva) | `256` |
+| `DEDUPLICATE_READINGS` | Descarta las lecturas repetidas (mismo nodo y `timestamp`) | `True` |
+| `DUPLICATE_FILTER_CAPACITY` | Lecturas que recuerda el filtro de Bloom antes de reconstruirse (entero ≥ 1) | `100000` |
 | `DASHBOARD_CACHE_SECONDS` | Segundos que se reutiliza el resumen de `/dashboard/summary/` (número ≥ 0; 0 lo desactiva) | `5` |
 | `TEMPERATURE_WINDOW_SIZE` | Lecturas que cubre la ventana de temperatura máxima y mínima de cada nodo (entero ≥ 1) | `20` |
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
@@ -88,7 +90,7 @@ se registra una advertencia.
 | Método y ruta | Descripción |
 | --- | --- |
 | `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `offset`, `order` |
-| `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta |
+| `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta. Si ya existe una lectura del mismo nodo y `timestamp` responde `200` con `status: "duplicate"` y no guarda nada (ver «Lecturas duplicadas») |
 | `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
@@ -126,6 +128,21 @@ curl http://localhost:8000/api/nodes/SIM-001/status/
 curl "http://localhost:8000/api/readings/?node_id=SIM-001&range=24h&limit=50&order=desc"
 curl http://localhost:8000/api/dashboard/summary/
 ```
+
+## Lecturas duplicadas
+
+Un sensor que reintenta un envío repite la lectura. Dos lecturas con el mismo nodo y
+el mismo instante (`timestamp`, sin importar la zona horaria) se consideran la misma:
+la segunda no se guarda ni genera alertas y la API responde `200` con
+`"status": "duplicate"` y la lectura que ya existía.
+
+Para no consultar la base en cada ingesta se usa un filtro de Bloom en memoria: si dice
+que la lectura es nueva se guarda directamente; si dice que quizá ya está, se **confirma
+en la base** antes de descartarla (un falso positivo del filtro nunca pierde un dato).
+El filtro se rellena con las últimas lecturas la primera vez que se usa y se reconstruye
+al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo, así que un duplicado
+de una lectura muy antigua o llegado a otro worker puede guardarse repetido. Se
+desactiva con `DEDUPLICATE_READINGS=False`.
 
 ## Acceso de lectura
 

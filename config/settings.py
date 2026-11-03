@@ -291,6 +291,10 @@ TEMPERATURE_WINDOW_SIZE = _env_positive_int("TEMPERATURE_WINDOW_SIZE", 20)
 NODE_STATUS_CACHE_SIZE = _env_non_negative_int("NODE_STATUS_CACHE_SIZE", 256)
 # Segundos que se reutiliza el resumen de /dashboard/summary/ (0 lo desactiva).
 DASHBOARD_CACHE_SECONDS = _env_non_negative_float("DASHBOARD_CACHE_SECONDS", 5.0)
+# Descarta las lecturas repetidas (mismo nodo y mismo timestamp) con un filtro de Bloom.
+DEDUPLICATE_READINGS = _env_bool("DEDUPLICATE_READINGS", True)
+# Lecturas que recuerda el filtro antes de reiniciarse (ver services/duplicate_readings.py).
+DUPLICATE_FILTER_CAPACITY = _env_positive_int("DUPLICATE_FILTER_CAPACITY", 100000)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.

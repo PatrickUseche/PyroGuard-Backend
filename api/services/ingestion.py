@@ -7,6 +7,7 @@ from api.models import Node, RiskAssessment
 from api.services.ai_client import AIPrediction, request_prediction
 from api.services.alerts import maybe_create_alert
 from api.services.dashboard_cache import dashboard_cache
+from api.services.duplicate_readings import duplicate_readings
 from api.services.live_readings import live_readings
 from api.services.node_status_cache import node_status_cache
 from api.services.risk_rules import evaluate_risk
@@ -15,9 +16,24 @@ from api.services.risk_rules import evaluate_risk
 logger = logging.getLogger("api.readings")
 
 
+class DuplicateReadingError(Exception):
+    """La lectura ya estaba registrada (mismo nodo y mismo ``timestamp``)."""
+
+    def __init__(self, reading):
+        super().__init__("La lectura ya estaba registrada.")
+        self.reading = reading
+
+
 def ingest_reading(serializer):
     risk_level = None
     alert_id = None
+
+    node_id = serializer.validated_data["node_id"]
+    timestamp = serializer.validated_data["timestamp"]
+    existing = duplicate_readings.find(node_id, timestamp)
+    if existing is not None:
+        logger.info("Lectura duplicada descartada node_id=%s", node_id)
+        raise DuplicateReadingError(existing)
 
     with transaction.atomic():
         reading = serializer.save()
@@ -34,6 +50,8 @@ def ingest_reading(serializer):
                 "id=%s; se conserva la lectura.",
                 reading.pk,
             )
+
+    duplicate_readings.remember(node_id, timestamp)
 
     # La IA se consulta con la lectura ya confirmada y fuera de cualquier
     # transacción, para no mantener bloqueos mientras dura el timeout.

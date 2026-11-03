@@ -14,7 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 from .models import Alert, Node, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
-from .services.ingestion import ingest_reading
+from .services.ingestion import DuplicateReadingError, ingest_reading
 from .services.live_readings import live_readings
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
 from .services.pagination import TOTAL_COUNT_HEADER, paginate
@@ -100,7 +100,20 @@ class ReceiveMeasurementView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        reading, risk_level, alert_id = ingest_reading(serializer)
+        try:
+            reading, risk_level, alert_id = ingest_reading(serializer)
+        except DuplicateReadingError as duplicate:
+            existing = duplicate.reading
+            return Response(
+                {
+                    "status": "duplicate",
+                    "message": "La lectura ya estaba registrada; no se guardó de nuevo.",
+                    "reading": SensorReadingSerializer(existing).data,
+                    "risk_level": SensorReadingSerializer(existing).data["risk_level"],
+                    "alert_id": None,
+                },
+                status=status.HTTP_200_OK,
+            )
         return Response(
             {
                 "status": "success",
