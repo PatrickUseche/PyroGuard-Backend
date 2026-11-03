@@ -1,0 +1,20 @@
+# Lo que no debe entrar a la imagen: entornos, secretos, bases locales y archivos de desarrollo.
+.git
+.github
+.gitignore
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+.env*
+!.env.example
+*.sqlite3
+staticfiles/
+.coverage
+htmlcov/
+.ruff_cache/
+docs/
+TASKS.md
+Dockerfile
+docker-compose.yml
