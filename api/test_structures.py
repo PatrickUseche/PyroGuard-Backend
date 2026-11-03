@@ -5,6 +5,7 @@ from django.test import SimpleTestCase
 
 from .structures.adjacency_graph import AdjacencyGraph
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
+from .structures.disjoint_set_union import DisjointSetUnion
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
 from .structures.prefix_trie import PrefixTrie
@@ -1141,3 +1142,118 @@ class AdjacencyGraphTests(SimpleTestCase):
             del expected[start]
 
             self.assertEqual(graph.reachable_within(start), expected)
+
+
+class DisjointSetUnionTests(SimpleTestCase):
+    def test_new_structure_is_empty(self):
+        sets = DisjointSetUnion()
+
+        self.assertEqual(len(sets), 0)
+        self.assertEqual(sets.group_count(), 0)
+        self.assertEqual(sets.groups(), [])
+
+    def test_every_item_starts_in_its_own_group(self):
+        sets = DisjointSetUnion("abc")
+
+        self.assertEqual(len(sets), 3)
+        self.assertEqual(sets.group_count(), 3)
+        self.assertEqual(sets.find("a"), "a")
+        self.assertFalse(sets.connected("a", "b"))
+
+    def test_add_reports_whether_the_item_was_new(self):
+        sets = DisjointSetUnion()
+
+        self.assertTrue(sets.add("a"))
+        self.assertFalse(sets.add("a"))
+        self.assertEqual(sets.group_count(), 1)
+        self.assertIn("a", sets)
+
+    def test_find_of_an_unknown_item_raises_key_error(self):
+        sets = DisjointSetUnion("ab")
+
+        with self.assertRaises(KeyError):
+            sets.find("z")
+        with self.assertRaises(KeyError):
+            sets.connected("a", "z")
+
+    def test_union_merges_groups_and_reports_it(self):
+        sets = DisjointSetUnion("abcd")
+
+        self.assertTrue(sets.union("a", "b"))
+        self.assertTrue(sets.union("c", "d"))
+        self.assertEqual(sets.group_count(), 2)
+        self.assertTrue(sets.union("b", "c"))
+        self.assertEqual(sets.group_count(), 1)
+        self.assertTrue(sets.connected("a", "d"))
+
+    def test_union_of_connected_items_changes_nothing(self):
+        sets = DisjointSetUnion("abc")
+        sets.union("a", "b")
+
+        self.assertFalse(sets.union("b", "a"))
+        self.assertFalse(sets.union("a", "a"))
+        self.assertEqual(sets.group_count(), 2)
+
+    def test_union_registers_missing_items(self):
+        sets = DisjointSetUnion()
+
+        sets.union("x", "y")
+
+        self.assertEqual(len(sets), 2)
+        self.assertTrue(sets.connected("x", "y"))
+
+    def test_connection_is_transitive_and_symmetric(self):
+        sets = DisjointSetUnion(range(5))
+        sets.union(0, 1)
+        sets.union(1, 2)
+
+        self.assertTrue(sets.connected(0, 2))
+        self.assertTrue(sets.connected(2, 0))
+        self.assertFalse(sets.connected(0, 3))
+
+    def test_groups_lists_each_set_once(self):
+        sets = DisjointSetUnion("abcdef")
+        sets.union("a", "c")
+        sets.union("c", "e")
+        sets.union("b", "d")
+
+        groups = sorted(sorted(group) for group in sets.groups())
+
+        self.assertEqual(groups, [["a", "c", "e"], ["b", "d"], ["f"]])
+
+    def test_find_compresses_the_path(self):
+        sets = DisjointSetUnion(range(4))
+        # Se arma a mano una cadena 3 -> 2 -> 1 -> 0 para comprobar la compresión.
+        sets._parent.update({1: 0, 2: 1, 3: 2})
+
+        self.assertEqual(sets.find(3), 0)
+        self.assertEqual(sets._parent[3], 0)
+        self.assertEqual(sets._parent[2], 0)
+
+    def test_union_by_rank_keeps_trees_shallow(self):
+        sets = DisjointSetUnion(range(64))
+        for item in range(63):
+            sets.union(item, item + 1)
+
+        def depth(item):
+            steps = 0
+            while sets._parent[item] != item:
+                item = sets._parent[item]
+                steps += 1
+            return steps
+
+        self.assertLessEqual(max(depth(item) for item in range(64)), 6)
+
+    def test_matches_a_reference_on_random_unions(self):
+        rng = random.Random(9)
+        sets = DisjointSetUnion(range(30))
+        label = list(range(30))
+        for _ in range(60):
+            first, second = rng.randrange(30), rng.randrange(30)
+            sets.union(first, second)
+            old, new = label[second], label[first]
+            label = [new if value == old else value for value in label]
+
+            probe_a, probe_b = rng.randrange(30), rng.randrange(30)
+            self.assertEqual(sets.connected(probe_a, probe_b), label[probe_a] == label[probe_b])
+        self.assertEqual(sets.group_count(), len(set(label)))

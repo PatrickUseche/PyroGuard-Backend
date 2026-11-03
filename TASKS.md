@@ -59,7 +59,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(structures): grafo con lista de adyacencia y recorrido en anchura (BFS) por saltos [2.16]
 - [x] test(structures): pruebas del grafo y del BFS (ciclos, nodos aislados, límite de saltos) [2.17]
 - [x] feat(structures): conjunto disjunto (Union-Find) con compresión de caminos y unión por rango [2.18]
-- [ ] test(structures): pruebas del Union-Find [2.19]
+- [x] test(structures): pruebas del Union-Find [2.19]
 - [ ] feat(structures): sumas de prefijos para promedios de rango en O(1) [2.20]
 - [ ] test(structures): pruebas de las sumas de prefijos [2.21]
 - [ ] feat(structures): filtro de Bloom para detectar duplicados [2.22]
