@@ -679,9 +679,12 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
    - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyroguard.vercel.app`).
    - `AI_SERVICE_URL` y `AI_API_KEY`: los de la IA; déjalas vacías si aún no la tienes.
    - `EXTRA_ALLOWED_HOSTS`: solo si usas un dominio propio.
+   - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD`: tu usuario del admin
+     (elige una contraseña larga). Render gratis no da terminal, así que el build lo crea con estas variables.
 4. Cuando termine el despliegue, abre `https://pyroguard-backend.onrender.com/api/health/`: debe responder
    `status: ok` (o `degraded` si la IA aún no está).
-5. Copia `INGEST_API_KEY` del panel (pestaña *Environment*) y dásela a los sensores o al simulador.
+5. Entra a `https://<tu-backend>.onrender.com/admin/`, inicia sesión y crea los nodos (*Nodes → Add*, por ejemplo
+   `NODE-001`): una lectura de un nodo que no existe se rechaza con 400. Copia `INGEST_API_KEY` del panel (pestaña *Environment*) y dásela a los sensores o al simulador.
 6. Frontend en Vercel: apunta a la URL del backend y añade su dominio a `EXTRA_CORS_ORIGINS`.
 
 Las tareas programadas (avisos, nodos desconectados, mantenimiento) están comentadas al final de `render.yaml`

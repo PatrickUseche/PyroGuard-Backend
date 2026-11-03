@@ -29,6 +29,13 @@ services:
         sync: false
       - key: EXTRA_ALLOWED_HOSTS  # solo si usas un dominio propio; *.onrender.com ya está permitido
         sync: false
+      # Superusuario del admin: se crea en el build si las tres existen (si ya existe, se ignora).
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
       - key: AI_SERVICE_URL       # URL del servicio pyroguard-ia, sin barra final
         sync: false
       - key: AI_API_KEY           # igual a la AI_API_KEY del servicio de IA
