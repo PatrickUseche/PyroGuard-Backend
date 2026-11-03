@@ -10,6 +10,8 @@ from .views import (
     CloseAlertView,
     DashboardSummaryView,
     DashboardTopRiskView,
+    NodeLinkDetailView,
+    NodeLinksView,
     NodeReadingsView,
     NodeSearchView,
     NodeRecentReadingsView,
@@ -29,6 +31,12 @@ urlpatterns = [
         "auth/login/",
         ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),
         name="api_token_auth",
+    ),
+    path("nodes/<str:node_id>/links/", NodeLinksView.as_view(), name="node_links"),
+    path(
+        "nodes/<str:node_id>/links/<str:neighbor_id>/",
+        NodeLinkDetailView.as_view(),
+        name="node_link_detail",
     ),
     # Antes del router: si no, «search» se tomaría como el node_id de un nodo.
     path("nodes/search/", NodeSearchView.as_view(), name="node_search"),
