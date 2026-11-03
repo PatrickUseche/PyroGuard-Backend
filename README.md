@@ -566,6 +566,19 @@ PyroGuard-IA, y ambas suites la usan para verificar el contrato IA-Backend.
 Si el contrato cambia, actualiza la carpeta en PyroGuard-IA y cópiala aquí sin
 modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 
+### Lint y cobertura
+
+Las herramientas de desarrollo están en `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
+
+```powershell
+ruff check .                       # lint (configuración en ruff.toml); ruff check . --fix corrige lo automático
+coverage run manage.py test        # pruebas midiendo cobertura (configuración en .coveragerc)
+coverage report                    # resumen en consola; coverage html genera htmlcov/index.html
+```
+
+El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertura en el resumen del job;
+**falla si la cobertura baja de 90 %** (`fail_under` en `.coveragerc`).
+
 ## Despliegue en Render
 
 1. Crear un servicio web desde el repositorio del backend.
