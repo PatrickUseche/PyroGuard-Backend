@@ -93,8 +93,15 @@ class AlertAdmin(admin.ModelAdmin):
         "acknowledged_at",
         "closed_at",
     )
-    list_filter = ("status", "level", "created_at")
+    list_filter = (
+        "status",
+        "level",
+        ("node", admin.RelatedOnlyFieldListFilter),
+        "created_at",
+    )
     search_fields = ("node__node_id", "node__name", "message")
+    date_hierarchy = "created_at"
+    list_select_related = ("node",)
 
 
 @admin.register(NodeLink)
