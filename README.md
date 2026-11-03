@@ -57,6 +57,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
 | `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `NODE_STATUS_CACHE_SIZE` | Nodos cuyo `/status/` se guarda en la caché LRU en memoria (entero ≥ 0; 0 la desactiva) | `256` |
+| `NEIGHBOR_WARNING_HOPS` | Saltos hacia los vecinos a los que se avisa cuando un nodo entra en `FIRE` (entero ≥ 0; 0 lo desactiva) | `2` |
 | `DEDUPLICATE_READINGS` | Descarta las lecturas repetidas (mismo nodo y `timestamp`) | `True` |
 | `DUPLICATE_FILTER_CAPACITY` | Lecturas que recuerda el filtro de Bloom antes de reconstruirse (entero ≥ 1) | `100000` |
 | `DASHBOARD_CACHE_SECONDS` | Segundos que se reutiliza el resumen de `/dashboard/summary/` (número ≥ 0; 0 lo desactiva) | `5` |
