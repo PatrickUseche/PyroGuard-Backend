@@ -107,6 +107,45 @@ class SensorReading(models.Model):
         return f"{self.node.node_id} - {self.timestamp}"
 
 
+class NotificationOutbox(models.Model):
+    """Aviso pendiente de enviar por los canales de notificación.
+
+    Guardar los avisos en la base (en vez de enviarlos en el momento) evita que un
+    canal lento retrase la ingesta y permite reintentar si falla. ``priority`` menor
+    significa más urgente.
+    """
+
+    class Kind(models.TextChoices):
+        FIRE_ALERT = "FIRE_ALERT", "Alerta de incendio"
+        OFFLINE_ALERT = "OFFLINE_ALERT", "Nodo desconectado con alerta activa"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pendiente"
+        SENT = "SENT", "Enviado"
+        FAILED = "FAILED", "Fallido"
+
+    node = models.ForeignKey(Node, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    priority = models.PositiveSmallIntegerField()
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    delivered_channels = models.JSONField(default=list, blank=True)
+    last_error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="outbox_status_created_idx"),
+            models.Index(fields=["node", "kind", "created_at"], name="outbox_node_kind_created_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.kind} - {self.subject} - {self.status}"
+
+
 class ReadingHourly(models.Model):
     """Resumen de las lecturas de un nodo durante una hora (se conserva tras la purga)."""
 

@@ -1,9 +1,14 @@
+import logging
+
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from api.models import Alert, Node, RiskAssessment, SensorReading
+from api.models import Alert, Node, NotificationOutbox, RiskAssessment, SensorReading
+from api.notifications.outbox import enqueue
+
+logger = logging.getLogger("api.readings")
 
 
 def maybe_create_alert(
@@ -49,7 +54,7 @@ def maybe_create_alert(
             existing_alert.refresh_from_db()
             return existing_alert
 
-        return Alert.objects.create(
+        alert = Alert.objects.create(
             node=node,
             reading=reading,
             assessment=assessment,
@@ -58,3 +63,21 @@ def maybe_create_alert(
             message=message,
             last_seen_at=now,
         )
+
+    if level == RiskAssessment.RiskLevel.FIRE:
+        _notify_fire(node, message)
+    return alert
+
+
+def _notify_fire(node, message):
+    """Encola el aviso de una alerta FIRE nueva; un fallo aquí nunca debe perder la alerta."""
+    try:
+        with transaction.atomic():  # punto de guardado: si falla, no rompe la transacción de la ingesta
+            enqueue(
+                NotificationOutbox.Kind.FIRE_ALERT,
+                node,
+                f"Incendio detectado en el nodo {node.node_id}",
+                message,
+            )
+    except Exception:
+        logger.exception("No se pudo encolar el aviso de incendio del nodo %s.", node.node_id)

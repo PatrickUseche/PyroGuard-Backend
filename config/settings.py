@@ -316,6 +316,10 @@ NOTIFICATION_CHANNELS = _env_choice_list(
     "NOTIFICATION_CHANNELS", {"console", "email", "telegram"}, default=["console"]
 )
 NOTIFY_EMAIL_TO = _env_list("NOTIFY_EMAIL_TO")
+# Intentos de envío antes de dar un aviso por fallido.
+NOTIFICATION_MAX_ATTEMPTS = _env_positive_int("NOTIFICATION_MAX_ATTEMPTS", 3)
+# Segundos durante los que no se repite el mismo aviso del mismo nodo (0 lo desactiva).
+NOTIFICATION_COOLDOWN_SECONDS = _env_non_negative_int("NOTIFICATION_COOLDOWN_SECONDS", 300)
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
 EMAIL_PORT = _env_positive_int("EMAIL_PORT", 587)
