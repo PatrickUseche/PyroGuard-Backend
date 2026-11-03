@@ -258,6 +258,12 @@ dentro de `NODE_OFFLINE_THRESHOLD_SECONDS`, es `ONLINE`; si excede el umbral, es
 marca `current_risk_stale=true`: es historial, no un riesgo actual confirmado.
 El resumen global considera solo nodos online.
 
+`/status/` incluye `temperature_window` con la temperatura máxima (`max`) y mínima
+(`min`) de las últimas `TEMPERATURE_WINDOW_SIZE` lecturas del nodo (`readings` dice
+cuántas contiene de verdad y `size` su capacidad), o `null` si el nodo no tiene
+lecturas. Se calcula en O(1) con una ventana en memoria que la primera consulta
+carga de la base y la ingesta mantiene al día; se pierde al reiniciar el proceso.
+
 Se crea alerta para `FIRE`; las de `WARNING` dependen de `ALERT_ON_WARNING`.
 Una alerta del mismo nodo y nivel en `ACTIVE` o `ACKNOWLEDGED` se actualiza:
 incrementa `occurrences` y cambia `last_seen_at`. Un ascenso de WARNING a FIRE
