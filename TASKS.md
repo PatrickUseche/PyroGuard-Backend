@@ -88,7 +88,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(ingestion): filtro de Bloom y confirmación en base para descartar lecturas duplicadas [3.10]
 - [x] test(ingestion): pruebas de lecturas duplicadas (mismo nodo y timestamp) [3.11]
 - [x] feat(api): `GET /nodes/search/?prefix=` con un trie de los `node_id` [3.12]
-- [ ] test(api): pruebas de la búsqueda por prefijo [3.13]
+- [x] test(api): pruebas de la búsqueda por prefijo [3.13]
 - [ ] feat(alerts): ordenar las alertas activas por severidad y antigüedad con el montículo [3.14]
 - [ ] feat(api): `GET /dashboard/top-risk/?k=` con los K nodos de mayor riesgo usando el montículo [3.15]
 - [ ] test(api): pruebas del orden de alertas y del top-K [3.16]
