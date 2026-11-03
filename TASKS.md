@@ -156,7 +156,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] chore(ci): paso de ruff en GitHub Actions [7.3]
 - [x] chore(ci): medir la cobertura de pruebas con coverage.py [7.4]
 - [x] chore(ci): mostrar el resumen de cobertura en el job [7.5]
-- [ ] feat(admin): filtros y búsqueda de nodos [7.6]
+- [x] feat(admin): filtros y búsqueda de nodos [7.6]
 - [ ] feat(admin): filtros y búsqueda de lecturas [7.7]
 - [ ] feat(admin): filtros y búsqueda de alertas [7.8]
 - [ ] feat(commands): `seed_demo` con nodos, vecinos y lecturas de ejemplo [7.9]
