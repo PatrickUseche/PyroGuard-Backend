@@ -142,7 +142,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(logging): pruebas del formato JSON y del `request_id` [6.3]
 - [x] feat(api): `GET /health/` con el estado de la base de datos [6.4] (lo usa el frontend [2.6])
 - [x] feat(api): estado de la IA dentro de `/health/` [6.5]
-- [ ] test(api): pruebas de `/health/` con la base y la IA caídas [6.6]
+- [x] test(api): pruebas de `/health/` con la base y la IA caídas [6.6]
 - [ ] chore(deps): añadir drf-spectacular [6.7]
 - [ ] docs(api): esquema OpenAPI y `GET /api/schema/` [6.8]
 - [ ] docs(api): descripciones y ejemplos de los serializers en el esquema [6.9]
