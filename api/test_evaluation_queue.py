@@ -15,7 +15,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from .models import Alert, Node, RiskAssessment, SensorReading
 from .services.evaluation_queue import drain, evaluate_pending, load_batch, pending_count
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

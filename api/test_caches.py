@@ -16,7 +16,6 @@ from .services.dashboard_cache import DashboardSummaryCache, dashboard_cache
 from .services.live_readings import live_readings
 from .services.node_status_cache import NodeStatusCache, node_status_cache
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

@@ -1,6 +1,7 @@
 """Pruebas de la serie de lecturas: búsqueda binaria, promedios, mezcla y endpoint."""
 import random
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
@@ -18,7 +19,6 @@ from .services.series import (
     merge_sorted,
     upper_bound,
 )
-
 
 _unlimited_rates = patch.object(
     SimpleRateThrottle,

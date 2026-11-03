@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+
 from .models import Alert, Node, RiskAssessment, SensorReading
 
 
@@ -134,7 +135,10 @@ class SensorReadingSerializer(serializers.ModelSerializer):
             "nullable": True,
             "description": "Resultado de PyroGuard-IA, solo para trazabilidad (`risk_level` es la decisión final).",
             "properties": {
-                "status": {"type": "string", "enum": ["OK", "DISABLED", "UNAVAILABLE", "REJECTED", "INVALID_RESPONSE", "PENDING"]},
+                "status": {
+                    "type": "string",
+                    "enum": ["OK", "DISABLED", "UNAVAILABLE", "REJECTED", "INVALID_RESPONSE", "PENDING"],
+                },
                 "risk_level": {"type": "string", "nullable": True},
                 "probability": {"type": "number", "nullable": True},
                 "probabilities": {"type": "object"},

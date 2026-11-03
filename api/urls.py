@@ -1,6 +1,7 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.routers import DefaultRouter
+
 from .throttles import LoginThrottle
 from .views import (
     AcknowledgeAlertView,
@@ -9,15 +10,15 @@ from .views import (
     AlertListView,
     CloseAlertView,
     DashboardSummaryView,
-    HealthView,
-    DashboardZonesView,
     DashboardTopRiskView,
+    DashboardZonesView,
+    HealthView,
     NodeLinkDetailView,
     NodeLinksView,
     NodeNeighborsView,
     NodeReadingsView,
-    NodeSearchView,
     NodeRecentReadingsView,
+    NodeSearchView,
     NodeStatusView,
     NodeViewSet,
     ReadingSeriesView,

@@ -12,7 +12,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from .models import Node, SensorReading
 from .services.live_readings import live_readings
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

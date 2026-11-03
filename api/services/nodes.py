@@ -2,7 +2,6 @@ from django.conf import settings
 from django.db.models import (
     Case,
     Count,
-    F,
     IntegerField,
     Max,
     OuterRef,
@@ -16,11 +15,10 @@ from django.utils import timezone
 
 from api.models import Alert, Node, RiskAssessment, SensorReading, connection_status_at
 from api.serializers import SensorReadingSerializer
-from api.structures.priority_min_heap import PriorityMinHeap
 from api.services.dashboard_cache import dashboard_cache
 from api.services.live_readings import live_readings
 from api.services.node_status_cache import node_status_cache
-
+from api.structures.priority_min_heap import PriorityMinHeap
 
 RISK_PRIORITY = {"NORMAL": 1, "WARNING": 2, "FIRE": 3}
 

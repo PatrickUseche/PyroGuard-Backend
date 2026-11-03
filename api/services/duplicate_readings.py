@@ -19,8 +19,8 @@ from datetime import timezone
 from django.conf import settings
 
 from api.models import SensorReading
-from api.structures.duplicate_bloom_filter import DuplicateBloomFilter
 from api.services.locking import synchronized
+from api.structures.duplicate_bloom_filter import DuplicateBloomFilter
 
 FALSE_POSITIVE_RATE = 0.01
 

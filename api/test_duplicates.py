@@ -1,5 +1,6 @@
 """Pruebas de la detección de lecturas duplicadas en la ingesta."""
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -12,7 +13,6 @@ from .models import Alert, Node, SensorReading
 from .services.duplicate_readings import duplicate_readings
 from .services.live_readings import live_readings
 from .services.node_status_cache import node_status_cache
-
 
 _unlimited_rates = patch.object(
     SimpleRateThrottle,

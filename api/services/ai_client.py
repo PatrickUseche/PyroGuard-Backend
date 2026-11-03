@@ -12,7 +12,6 @@ from django.conf import settings
 
 from api.models import RiskAssessment, SensorReading
 
-
 logger = logging.getLogger("api.ai")
 
 AIStatus = RiskAssessment.AIStatus

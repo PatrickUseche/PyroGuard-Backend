@@ -1,5 +1,6 @@
 """Pruebas del orden de urgencia de alertas y del top-K de nodos por riesgo."""
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,7 +14,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from .models import Alert, Node, RiskAssessment, SensorReading
 from .services.alert_ordering import most_urgent, order_by_urgency, urgency
 from .services.dashboard_cache import dashboard_cache
-
 
 _unlimited_rates = patch.object(
     SimpleRateThrottle,

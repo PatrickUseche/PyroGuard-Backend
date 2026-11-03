@@ -1,6 +1,7 @@
 """Pruebas del candado que protege el estado en memoria compartido entre peticiones."""
 import threading
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
+from datetime import timezone as dt_timezone
 
 from django.test import SimpleTestCase, TransactionTestCase, override_settings
 
@@ -12,7 +13,6 @@ from .services.locking import synchronized
 from .services.node_graph import NodeGraph, node_graph
 from .services.node_search import NodeSearchIndex, node_search_index
 from .services.node_status_cache import NodeStatusCache, node_status_cache
-
 
 STATEFUL_SERVICES = (
     (LiveReadingsStore, live_readings),

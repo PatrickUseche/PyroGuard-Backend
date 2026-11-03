@@ -12,19 +12,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from .models import Alert, Node, NodeLink, SensorReading
 from . import openapi as o
+from .models import Alert, Node, NodeLink, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
+from .services.alert_ordering import order_by_urgency
 from .services.health import get_health
 from .services.ingestion import DuplicateReadingError, ingest_reading
-from .services.alert_ordering import order_by_urgency
 from .services.live_readings import live_readings
 from .services.node_graph import node_graph
 from .services.node_search import node_search_index
-from .services.risk_zones import get_risk_zones
-from .services.series import merge_sorted
-from .services.series_queries import load_series, parse_series_query
 from .services.nodes import (
     get_dashboard_summary,
     get_node_status,
@@ -32,9 +29,11 @@ from .services.nodes import (
     nodes_with_current_risk,
 )
 from .services.pagination import TOTAL_COUNT_HEADER, paginate
-from .throttles import IngestThrottle, ReadThrottle
 from .services.reading_queries import filter_readings, parse_datetime_parameter
-
+from .services.risk_zones import get_risk_zones
+from .services.series import merge_sorted
+from .services.series_queries import load_series, parse_series_query
+from .throttles import IngestThrottle, ReadThrottle
 
 logger = logging.getLogger("api.readings")
 
@@ -132,7 +131,12 @@ class NodeLinksView(APIView):
         summary="Registrar un vecino",
         description="Requiere autenticación. La relación no tiene dirección.",
         request=o.NodeLinkRequestSerializer,
-        responses={201: o.NodeLinkCreatedSerializer, 400: o.ErrorSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
+        responses={
+            201: o.NodeLinkCreatedSerializer,
+            400: o.ErrorSerializer,
+            404: o.ErrorSerializer,
+            409: o.ErrorSerializer,
+        },
     )
     def post(self, request, node_id):
         node = get_object_or_404(Node, node_id=node_id)
@@ -250,7 +254,8 @@ class HealthView(APIView):
 
     @extend_schema(
         summary="Estado del backend",
-        description="200 si la base responde (`ok`, o `degraded` si la IA configurada no responde); 503 si la base está caída.",
+        description="200 si la base responde (`ok`, o `degraded` si la IA configurada no responde); "
+        "503 si la base está caída.",
         responses={200: o.HealthSerializer, 503: o.HealthSerializer},
         examples=[o.EXAMPLE_HEALTH_DEGRADED],
         auth=[],
@@ -323,8 +328,14 @@ class ReadingSeriesView(APIView):
         description="Uno o varios nodos; con `step` devuelve el promedio por tramos y sin él los puntos. "
         "Con `merge=true` añade todos los nodos en una sola línea de tiempo.",
         parameters=[
-            OpenApiParameter("node_id", str, many=True, required=True, description="Hasta 10; repetido o separado por comas."),
-            OpenApiParameter("field", str, enum=["temperature", "humidity", "smoke", "gas"], description="Por defecto `temperature`."),
+            OpenApiParameter(
+                "node_id", str, many=True, required=True,
+                description="Hasta 10; repetido o separado por comas.",
+            ),
+            OpenApiParameter(
+                "field", str, enum=["temperature", "humidity", "smoke", "gas"],
+                description="Por defecto `temperature`.",
+            ),
             o.FROM,
             o.TO,
             OpenApiParameter("step", int, description="Segundos por tramo (1 a 86400)."),
@@ -379,7 +390,12 @@ class ReceiveMeasurementView(APIView):
         description="Requiere `X-API-Key`. Evalúa el riesgo (reglas + IA) y puede crear o actualizar una alerta. "
         "Una lectura repetida (mismo nodo y `timestamp`) responde 200 con `status: duplicate` y no guarda nada.",
         request=SensorReadingSerializer,
-        responses={201: o.IngestResponseSerializer, 200: o.IngestResponseSerializer, 400: o.ErrorSerializer, 401: o.ErrorSerializer},
+        responses={
+            201: o.IngestResponseSerializer,
+            200: o.IngestResponseSerializer,
+            400: o.ErrorSerializer,
+            401: o.ErrorSerializer,
+        },
         examples=[o.EXAMPLE_INGEST_REQUEST, o.EXAMPLE_FIRE_REQUEST],
     )
     def post(self, request):
@@ -418,7 +434,10 @@ class ReceiveMeasurementView(APIView):
 
     @extend_schema(
         summary="Listar lecturas",
-        parameters=[OpenApiParameter("node_id", str, description="Filtra por nodo."), o.LIMIT, o.OFFSET, o.FROM, o.TO, o.RANGE, o.ORDER, o.TOTAL_COUNT_HEADER],
+        parameters=[
+            OpenApiParameter("node_id", str, description="Filtra por nodo."),
+            o.LIMIT, o.OFFSET, o.FROM, o.TO, o.RANGE, o.ORDER, o.TOTAL_COUNT_HEADER,
+        ],
         responses={200: SensorReadingSerializer(many=True)},
     )
     def get(self, request):

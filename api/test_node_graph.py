@@ -13,7 +13,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from .models import Node, NodeLink
 from .services.node_graph import node_graph
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

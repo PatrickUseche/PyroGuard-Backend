@@ -12,7 +12,6 @@ from rest_framework.throttling import SimpleRateThrottle
 from .models import Node
 from .services.node_search import node_search_index
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
