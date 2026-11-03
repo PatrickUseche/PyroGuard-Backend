@@ -139,7 +139,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 - [x] feat(logging): formateador de logs en JSON [6.1]
 - [x] feat(logging): middleware que añade un `request_id` a cada petición y a sus logs [6.2]
-- [ ] test(logging): pruebas del formato JSON y del `request_id` [6.3]
+- [x] test(logging): pruebas del formato JSON y del `request_id` [6.3]
 - [ ] feat(api): `GET /health/` con el estado de la base de datos [6.4] (lo usa el frontend [2.6])
 - [ ] feat(api): estado de la IA dentro de `/health/` [6.5]
 - [ ] test(api): pruebas de `/health/` con la base y la IA caídas [6.6]
