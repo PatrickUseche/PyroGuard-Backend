@@ -8,6 +8,8 @@ import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
+from config.security import build_security_settings
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -137,6 +139,9 @@ if not SECRET_KEY:
             "La variable SECRET_KEY es obligatoria cuando DEBUG es False."
         )
     SECRET_KEY = secrets.token_urlsafe(50)
+
+# HTTPS, cookies seguras y cabeceras: activos con DEBUG=False (ver config/security.py).
+globals().update(build_security_settings(DEBUG))
 
 ALLOWED_HOSTS = [
     ".onrender.com",
