@@ -122,7 +122,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 ## Fase 5 — Notificaciones
 
-- [ ] feat(alerts): interfaz `Notifier` y canal de consola [5.1]
+- [x] feat(alerts): interfaz `Notifier` y canal de consola [5.1]
 - [ ] feat(alerts): canal de correo configurable por variables de entorno [5.2]
 - [ ] feat(alerts): canal de Telegram configurable por variables de entorno [5.3]
 - [ ] feat(alerts): cola de prioridad (montículo) con los avisos pendientes [5.4]
