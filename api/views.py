@@ -11,12 +11,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from .models import Alert, Node, SensorReading
+from .models import Alert, Node, NodeLink, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import DuplicateReadingError, ingest_reading
 from .services.alert_ordering import order_by_urgency
 from .services.live_readings import live_readings
+from .services.node_graph import node_graph
 from .services.node_search import node_search_index
 from .services.nodes import (
     get_dashboard_summary,
@@ -85,6 +86,55 @@ class NodeRecentReadingsView(APIView):
             if not 1 <= limit <= capacity:
                 raise ParseError(f"'limit' debe estar entre 1 y {capacity}.")
         return Response(live_readings.recent(node, limit))
+
+
+class NodeLinksView(APIView):
+    """Vecinos directos de un nodo: listarlos y registrar uno nuevo."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+
+    def get(self, request, node_id):
+        get_object_or_404(Node, node_id=node_id)
+        return Response(
+            {"node_id": node_id, "neighbors": node_graph.direct_neighbors(node_id)}
+        )
+
+    def post(self, request, node_id):
+        node = get_object_or_404(Node, node_id=node_id)
+        neighbor_id = request.data.get("neighbor") if hasattr(request.data, "get") else None
+        if not isinstance(neighbor_id, str) or not neighbor_id.strip():
+            raise ParseError("El campo 'neighbor' con el node_id del vecino es obligatorio.")
+        neighbor_id = neighbor_id.strip()
+        if neighbor_id == node_id:
+            raise ParseError("Un nodo no puede ser vecino de sí mismo.")
+        neighbor = Node.objects.filter(node_id=neighbor_id).first()
+        if neighbor is None:
+            raise ParseError(f"El nodo '{neighbor_id}' no existe.")
+
+        first, second = sorted((node, neighbor), key=lambda item: item.pk)
+        with transaction.atomic():
+            _, created = NodeLink.objects.get_or_create(node_a=first, node_b=second)
+        if not created:
+            return Response(
+                {"status": "error", "message": "Esos nodos ya son vecinos."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(
+            {"node_id": node_id, "neighbor": neighbor_id},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class NodeLinkDetailView(APIView):
+    permission_classes = [IsAuthenticatedOrPublicRead]
+
+    def delete(self, request, node_id, neighbor_id):
+        node = get_object_or_404(Node, node_id=node_id)
+        neighbor = get_object_or_404(Node, node_id=neighbor_id)
+        first, second = sorted((node, neighbor), key=lambda item: item.pk)
+        link = get_object_or_404(NodeLink, node_a=first, node_b=second)
+        link.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NodeSearchView(APIView):

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Alert, Node, RiskAssessment, SensorReading
+from .models import Alert, Node, NodeLink, RiskAssessment, SensorReading
 
 
 @admin.register(Node)
@@ -59,3 +59,9 @@ class AlertAdmin(admin.ModelAdmin):
     )
     list_filter = ("status", "level", "created_at")
     search_fields = ("node__node_id", "node__name", "message")
+
+
+@admin.register(NodeLink)
+class NodeLinkAdmin(admin.ModelAdmin):
+    list_display = ("node_a", "node_b", "created_at")
+    search_fields = ("node_a__node_id", "node_b__node_id")

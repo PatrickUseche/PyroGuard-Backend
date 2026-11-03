@@ -2,8 +2,9 @@
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .models import Alert, Node, RiskAssessment, SensorReading
+from .models import Alert, Node, NodeLink, RiskAssessment, SensorReading
 from .services.dashboard_cache import dashboard_cache
+from .services.node_graph import node_graph
 from .services.node_search import node_search_index
 from .services.node_status_cache import node_status_cache
 
@@ -41,3 +42,18 @@ def invalidate_on_assessment_saved(sender, instance, **kwargs):
 def invalidate_on_alert_saved(sender, instance, **kwargs):
     node_status_cache.invalidate(instance.node.node_id)
     dashboard_cache.invalidate()
+
+
+@receiver(post_save, sender=NodeLink)
+def graph_link_added(sender, instance, created, **kwargs):
+    if created:
+        node_graph.link_added(instance.node_a.node_id, instance.node_b.node_id)
+
+
+@receiver(post_delete, sender=NodeLink)
+def graph_link_removed(sender, instance, **kwargs):
+    try:
+        node_graph.link_removed(instance.node_a.node_id, instance.node_b.node_id)
+    except Node.DoesNotExist:
+        # Los nodos ya no están (borrado en cascada): se reconstruye desde la base.
+        node_graph.clear()

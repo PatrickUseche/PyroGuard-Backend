@@ -43,6 +43,39 @@ class Node(models.Model):
         return self.name or self.node_id
 
 
+class NodeLink(models.Model):
+    """Dos nodos vecinos (cercanos entre sí). La relación no tiene dirección.
+
+    Cada par se guarda una sola vez y siempre con ``node_a`` como el nodo de menor
+    ``pk``: ``save`` reordena los extremos, así que unir A con B o B con A da la
+    misma fila y no se puede duplicar el enlace.
+    """
+
+    node_a = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="links_as_a")
+    node_b = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="links_as_b")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(node_a=models.F("node_b")),
+                name="nodelink_not_self",
+            ),
+            models.UniqueConstraint(
+                fields=["node_a", "node_b"],
+                name="nodelink_unique_pair",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.node_a_id and self.node_b_id and self.node_a_id > self.node_b_id:
+            self.node_a, self.node_b = self.node_b, self.node_a
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.node_a.node_id} <-> {self.node_b.node_id}"
+
+
 class SensorReading(models.Model):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name='readings')
 
