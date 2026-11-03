@@ -8,6 +8,7 @@ from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.disjoint_set_union import DisjointSetUnion
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
+from .structures.prefix_sums import PrefixSums
 from .structures.prefix_trie import PrefixTrie
 from .structures.priority_min_heap import PriorityMinHeap
 from .structures.recent_items_ring import RecentItemsRing
@@ -1257,3 +1258,102 @@ class DisjointSetUnionTests(SimpleTestCase):
             probe_a, probe_b = rng.randrange(30), rng.randrange(30)
             self.assertEqual(sets.connected(probe_a, probe_b), label[probe_a] == label[probe_b])
         self.assertEqual(sets.group_count(), len(set(label)))
+
+
+class PrefixSumsTests(SimpleTestCase):
+    def test_empty_structure(self):
+        sums = PrefixSums()
+
+        self.assertEqual(len(sums), 0)
+        self.assertEqual(sums.total(), 0)
+        self.assertEqual(sums.range_sum(0, 0), 0)
+
+    def test_range_sum_uses_a_half_open_interval(self):
+        sums = PrefixSums([3, 1, 4, 1, 5])
+
+        self.assertEqual(sums.range_sum(0, 5), 14)
+        self.assertEqual(sums.range_sum(1, 4), 6)
+        self.assertEqual(sums.range_sum(2, 3), 4)
+        self.assertEqual(sums.range_sum(2, 2), 0)
+        self.assertEqual(sums.total(), 14)
+        self.assertEqual(len(sums), 5)
+
+    def test_range_mean(self):
+        sums = PrefixSums([10, 20, 30, 40])
+
+        self.assertEqual(sums.range_mean(0, 4), 25)
+        self.assertEqual(sums.range_mean(1, 3), 25)
+        self.assertEqual(sums.range_mean(3, 4), 40)
+
+    def test_mean_of_an_empty_range_is_an_error(self):
+        sums = PrefixSums([1, 2])
+
+        with self.assertRaises(ValueError):
+            sums.range_mean(1, 1)
+
+    def test_ranges_outside_the_values_are_rejected(self):
+        sums = PrefixSums([1, 2, 3])
+
+        for start, stop in ((-1, 2), (0, 4), (2, 1), (4, 4)):
+            with self.subTest(start=start, stop=stop):
+                with self.assertRaises(IndexError):
+                    sums.range_sum(start, stop)
+                with self.assertRaises(IndexError):
+                    sums.range_mean(start, stop)
+
+    def test_range_limits_must_be_integers(self):
+        sums = PrefixSums([1, 2, 3])
+
+        for start, stop in ((0.5, 2), (0, "2"), (None, 2), (True, 2)):
+            with self.subTest(start=start, stop=stop):
+                with self.assertRaises(TypeError):
+                    sums.range_sum(start, stop)
+
+    def test_append_extends_the_ranges(self):
+        sums = PrefixSums([1, 2])
+        sums.append(3)
+
+        self.assertEqual(len(sums), 3)
+        self.assertEqual(sums.range_sum(1, 3), 5)
+        self.assertEqual(sums.total(), 6)
+
+    def test_negative_and_float_values(self):
+        sums = PrefixSums([-5, 2.5, 7, -1.5])
+
+        self.assertEqual(sums.range_sum(0, 4), 3)
+        self.assertEqual(sums.range_sum(1, 3), 9.5)
+        self.assertAlmostEqual(sums.range_mean(0, 4), 0.75)
+
+    def test_non_numeric_values_are_rejected(self):
+        sums = PrefixSums()
+
+        for value in ("5", None, True, [1]):
+            with self.subTest(value=value):
+                with self.assertRaises(TypeError):
+                    sums.append(value)
+        with self.assertRaises(ValueError):
+            sums.append(float("nan"))
+        self.assertEqual(len(sums), 0)
+
+    def test_failed_append_leaves_the_sums_untouched(self):
+        sums = PrefixSums([1, 2])
+
+        with self.assertRaises(TypeError):
+            sums.append("x")
+
+        self.assertEqual(len(sums), 2)
+        self.assertEqual(sums.total(), 3)
+
+    def test_matches_a_direct_sum_over_every_range(self):
+        rng = random.Random(21)
+        values = [rng.randint(-100, 100) for _ in range(40)]
+        sums = PrefixSums(values)
+
+        for start in range(len(values) + 1):
+            for stop in range(start, len(values) + 1):
+                self.assertEqual(sums.range_sum(start, stop), sum(values[start:stop]))
+                if start < stop:
+                    self.assertAlmostEqual(
+                        sums.range_mean(start, stop),
+                        sum(values[start:stop]) / (stop - start),
+                    )
