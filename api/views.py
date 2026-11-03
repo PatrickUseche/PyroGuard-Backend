@@ -20,6 +20,7 @@ from .services.live_readings import live_readings
 from .services.node_graph import node_graph
 from .services.node_search import node_search_index
 from .services.risk_zones import get_risk_zones
+from .services.series import merge_sorted
 from .services.series_queries import load_series, parse_series_query
 from .services.nodes import (
     get_dashboard_summary,
@@ -248,15 +249,22 @@ class ReadingSeriesView(APIView):
             else:
                 entry["buckets"] = node_series.buckets(query.start, query.end, query.step)
             series.append(entry)
-        return Response(
-            {
-                "field": query.field,
-                "from": query.start,
-                "to": query.end,
-                "step": query.step,
-                "series": series,
-            }
-        )
+
+        body = {
+            "field": query.field,
+            "from": query.start,
+            "to": query.end,
+            "step": query.step,
+            "series": series,
+        }
+        if query.merge:
+            # Todas las series en una sola línea de tiempo (mezcla de k listas ordenadas).
+            detail, time_key = ("points", "timestamp") if query.step is None else ("buckets", "start")
+            body["merged"] = merge_sorted(
+                [[{"node_id": entry["node_id"], **item} for item in entry[detail]] for entry in series],
+                key=lambda item: item[time_key],
+            )
+        return Response(body)
 
 
 class ReceiveMeasurementView(APIView):

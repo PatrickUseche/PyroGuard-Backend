@@ -12,6 +12,7 @@ O(n + b log n) en lugar de recorrer los datos una vez por tramo (O(n · b)).
 from datetime import datetime, timedelta, timezone
 
 from api.structures.prefix_sums import PrefixSums
+from api.structures.priority_min_heap import PriorityMinHeap
 
 MAX_BUCKETS = 2000
 
@@ -114,3 +115,28 @@ class TimeSeries:
                 )
             bucket_start = bucket_end
         return buckets
+
+
+def merge_sorted(lists, key):
+    """Mezcla ``k`` listas ya ordenadas por ``key`` en una sola lista ordenada.
+
+    Un montículo mínimo guarda el primer elemento pendiente de cada lista: se saca
+    el menor y se mete el siguiente de su misma lista. Cuesta O(N log k) para ``N``
+    elementos en total, frente a O(N log N) de juntar todo y reordenar. Ante un
+    empate sale primero el elemento de la lista que viene antes en ``lists``, y las
+    listas vacías se ignoran.
+    """
+    heap = PriorityMinHeap(priority=lambda head: (key(head[0]), head[1]))
+    positions = [0] * len(lists)
+    for list_index, items in enumerate(lists):
+        if items:
+            heap.push((items[0], list_index))
+
+    merged = []
+    while not heap.is_empty():
+        item, list_index = heap.pop()
+        merged.append(item)
+        positions[list_index] += 1
+        if positions[list_index] < len(lists[list_index]):
+            heap.push((lists[list_index][positions[list_index]], list_index))
+    return merged
