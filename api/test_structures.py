@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
+from .structures.priority_min_heap import PriorityMinHeap
 from .structures.recent_items_ring import RecentItemsRing
 from .structures.rolling_extremes_window import RollingExtremesWindow
 
@@ -745,3 +746,141 @@ class FirstInFirstOutQueueTests(SimpleTestCase):
 
         self.assertEqual([queue.dequeue() for _ in range(10000)], list(range(10000)))
         self.assertTrue(queue.is_empty())
+
+
+class PriorityMinHeapTests(SimpleTestCase):
+    def test_new_heap_is_empty(self):
+        heap = PriorityMinHeap()
+
+        self.assertEqual(len(heap), 0)
+        self.assertTrue(heap.is_empty())
+
+    def test_empty_heap_has_no_top(self):
+        heap = PriorityMinHeap()
+
+        with self.assertRaises(IndexError):
+            heap.peek()
+        with self.assertRaises(IndexError):
+            heap.pop()
+
+    def test_priority_must_be_callable(self):
+        with self.assertRaises(TypeError):
+            PriorityMinHeap(priority=3)
+
+    def test_items_come_out_from_smallest_to_largest(self):
+        heap = PriorityMinHeap()
+        for value in (5, 1, 4, 2, 3):
+            heap.push(value)
+
+        self.assertEqual(heap.peek(), 1)
+        self.assertEqual([heap.pop() for _ in range(5)], [1, 2, 3, 4, 5])
+        self.assertTrue(heap.is_empty())
+
+    def test_peek_does_not_remove(self):
+        heap = PriorityMinHeap()
+        heap.push(2)
+        heap.push(1)
+
+        self.assertEqual(heap.peek(), 1)
+        self.assertEqual(len(heap), 2)
+
+    def test_custom_priority_function(self):
+        heap = PriorityMinHeap(priority=lambda word: len(word))
+        for word in ("pino", "a", "bosque", "fuego"):
+            heap.push(word)
+
+        self.assertEqual([heap.pop() for _ in range(4)], ["a", "pino", "fuego", "bosque"])
+
+    def test_negated_priority_gives_the_largest_first(self):
+        heap = PriorityMinHeap(priority=lambda value: -value)
+        for value in (3, 9, 1, 7):
+            heap.push(value)
+
+        self.assertEqual([heap.pop() for _ in range(4)], [9, 7, 3, 1])
+
+    def test_ties_come_out_in_insertion_order(self):
+        heap = PriorityMinHeap(priority=lambda pair: pair[0])
+        for pair in ((1, "a"), (0, "x"), (1, "b"), (1, "c"), (0, "y")):
+            heap.push(pair)
+
+        self.assertEqual(
+            [heap.pop() for _ in range(5)],
+            [(0, "x"), (0, "y"), (1, "a"), (1, "b"), (1, "c")],
+        )
+
+    def test_items_that_cannot_be_compared_work_with_a_priority(self):
+        heap = PriorityMinHeap(priority=lambda item: item["score"])
+        heap.push({"score": 2})
+        heap.push({"score": 2})
+        heap.push({"score": 1})
+
+        self.assertEqual(heap.pop(), {"score": 1})
+        self.assertEqual(len(heap), 2)
+
+    def test_pushing_after_popping_keeps_the_order(self):
+        heap = PriorityMinHeap()
+        for value in (4, 2, 6):
+            heap.push(value)
+        self.assertEqual(heap.pop(), 2)
+        heap.push(1)
+        heap.push(5)
+
+        self.assertEqual([heap.pop() for _ in range(4)], [1, 4, 5, 6])
+
+    def test_single_item(self):
+        heap = PriorityMinHeap()
+        heap.push("solo")
+
+        self.assertEqual(heap.pop(), "solo")
+        self.assertTrue(heap.is_empty())
+
+    def test_from_items_matches_sorting(self):
+        rng = random.Random(7)
+        values = [rng.randint(-50, 50) for _ in range(200)]
+
+        heap = PriorityMinHeap.from_items(values)
+
+        self.assertEqual(len(heap), 200)
+        self.assertEqual([heap.pop() for _ in range(200)], sorted(values))
+
+    def test_from_items_keeps_ties_in_input_order(self):
+        items = [(1, "a"), (0, "b"), (1, "c"), (0, "d")]
+
+        heap = PriorityMinHeap.from_items(items, priority=lambda pair: pair[0])
+
+        self.assertEqual([heap.pop() for _ in range(4)], [(0, "b"), (0, "d"), (1, "a"), (1, "c")])
+
+    def test_random_operations_match_a_sorted_list(self):
+        rng = random.Random(11)
+        heap = PriorityMinHeap()
+        reference = []
+        for _ in range(500):
+            if reference and rng.random() < 0.4:
+                reference.sort()
+                self.assertEqual(heap.pop(), reference.pop(0))
+            else:
+                value = rng.randint(0, 30)
+                heap.push(value)
+                reference.append(value)
+            self.assertEqual(len(heap), len(reference))
+
+    def test_smallest_returns_the_top_k_in_order(self):
+        values = [9, 3, 7, 1, 8, 2]
+
+        self.assertEqual(PriorityMinHeap.smallest(values, 3), [1, 2, 3])
+        self.assertEqual(PriorityMinHeap.smallest(values, 0), [])
+        self.assertEqual(PriorityMinHeap.smallest(values, 99), sorted(values))
+        self.assertEqual(PriorityMinHeap.smallest([], 2), [])
+
+    def test_smallest_with_priority_gives_the_riskiest_nodes(self):
+        nodes = [("a", 0.2), ("b", 0.9), ("c", 0.5), ("d", 0.9)]
+
+        top = PriorityMinHeap.smallest(nodes, 2, priority=lambda node: -node[1])
+
+        self.assertEqual(top, [("b", 0.9), ("d", 0.9)])
+
+    def test_smallest_rejects_an_invalid_k(self):
+        for k in (-1, 1.5, "2", None, True):
+            with self.subTest(k=k):
+                with self.assertRaises(ValueError):
+                    PriorityMinHeap.smallest([1, 2], k)
