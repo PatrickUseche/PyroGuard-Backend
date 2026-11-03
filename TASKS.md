@@ -54,7 +54,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(structures): pruebas de la cola FIFO [2.11]
 - [x] feat(structures): montículo binario mínimo con función de prioridad configurable [2.12]
 - [x] test(structures): pruebas del montículo (orden, empates, vaciado, top-K) [2.13]
-- [ ] feat(structures): trie para búsqueda por prefijo [2.14]
+- [x] feat(structures): trie para búsqueda por prefijo [2.14]
 - [ ] test(structures): pruebas del trie (prefijos, borrado, mayúsculas) [2.15]
 - [ ] feat(structures): grafo con lista de adyacencia y recorrido en anchura (BFS) por saltos [2.16]
 - [ ] test(structures): pruebas del grafo y del BFS (ciclos, nodos aislados, límite de saltos) [2.17]
