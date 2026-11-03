@@ -64,6 +64,19 @@ def _env_positive_int(name, default):
     return parsed_value
 
 
+def _env_non_negative_float(name, default):
+    value = os.getenv(name, "").strip()
+    if not value:
+        return default
+    try:
+        parsed_value = float(value)
+    except ValueError:
+        raise ImproperlyConfigured(f"{name} debe ser un número.") from None
+    if not math.isfinite(parsed_value) or parsed_value < 0:
+        raise ImproperlyConfigured(f"{name} debe ser un número mayor o igual que 0.")
+    return parsed_value
+
+
 def _env_rate(name, default):
     value = os.getenv(name, "").strip()
     if not value:
@@ -276,6 +289,8 @@ RECENT_READINGS_PER_NODE = _env_positive_int("RECENT_READINGS_PER_NODE", 50)
 TEMPERATURE_WINDOW_SIZE = _env_positive_int("TEMPERATURE_WINDOW_SIZE", 20)
 # Nodos cuyo /status/ se guarda en la caché LRU (0 la desactiva).
 NODE_STATUS_CACHE_SIZE = _env_non_negative_int("NODE_STATUS_CACHE_SIZE", 256)
+# Segundos que se reutiliza el resumen de /dashboard/summary/ (0 lo desactiva).
+DASHBOARD_CACHE_SECONDS = _env_non_negative_float("DASHBOARD_CACHE_SECONDS", 5.0)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.
