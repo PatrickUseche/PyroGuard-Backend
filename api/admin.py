@@ -54,8 +54,16 @@ class SensorReadingAdmin(admin.ModelAdmin):
         "flame",
         "timestamp",
     )
-    list_filter = ("flame", "timestamp")
+    list_filter = (
+        ("node", admin.RelatedOnlyFieldListFilter),
+        "flame",
+        "assessment__risk_level",
+        "timestamp",
+    )
     search_fields = ("node__node_id", "node__name")
+    date_hierarchy = "timestamp"
+    list_select_related = ("node",)
+    list_per_page = 50
 
 
 @admin.register(RiskAssessment)
