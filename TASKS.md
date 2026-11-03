@@ -166,7 +166,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(simulator): pruebas del simulador (hoy no tiene ninguna) [7.13]
 - [x] chore(docker): Dockerfile del backend [7.14]
 - [x] chore(docker): `docker-compose` local con el backend y la IA [7.15]
-- [ ] docs: instrucciones para correr todo con Docker [7.16]
+- [x] docs: instrucciones para correr todo con Docker [7.16]
 - [ ] chore(security): ajustes `SECURE_*` y cookies para producción [7.17]
 - [ ] test(config): pruebas de los ajustes de producción [7.18]
 - [ ] feat(commands): `benchmark_structures` que mide cada estructura frente a la consulta equivalente en base de datos [7.19]
