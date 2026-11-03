@@ -1,9 +1,17 @@
+import json
 import logging
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
+import requests
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured
+from django.db import connection
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -11,11 +19,41 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
+from rest_framework.throttling import SimpleRateThrottle
+
+from config import settings as settings_module
+from config.settings import (
+    _env_bool,
+    _env_header_name,
+    _env_non_negative_int,
+    _env_positive_float,
+    _env_rate,
+    _env_service_url,
+)
 
 from .exceptions import api_exception_handler
 from .models import Alert, Node, RiskAssessment, SensorReading
+from .serializers import SensorReadingSerializer
+from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
+
+
+_unlimited_rates = patch.object(
+    SimpleRateThrottle,
+    "THROTTLE_RATES",
+    {"read": None, "ingest": None, "login": None},
+)
+
+
+def setUpModule():
+    # Los límites reales se prueban en ThrottlingTests; el resto de la suite
+    # no debe toparse con ellos porque comparten la caché de la IP de pruebas.
+    _unlimited_rates.start()
+
+
+def tearDownModule():
+    _unlimited_rates.stop()
 
 
 class RiskRulesTests(SimpleTestCase):
@@ -89,6 +127,8 @@ class RiskRulesTests(SimpleTestCase):
         self.assertEqual(result["level"], "FIRE")
 
 
+# Aísla la ingesta de un AI_SERVICE_URL definido en el .env local.
+@override_settings(AI_SERVICE_URL="")
 class ReadingsContractTests(APITestCase):
     ingest_api_key = "test-ingest-key"
 
@@ -120,11 +160,13 @@ class ReadingsContractTests(APITestCase):
                 "flame",
                 "timestamp",
                 "risk_level",
+                "ai",
             },
         )
         self.assertEqual(response.data[0]["node_id"], "NODE-001")
         self.assertIsNone(response.data[0]["gas"])
         self.assertIsNone(response.data[0]["risk_level"])
+        self.assertIsNone(response.data[0]["ai"])
 
     @override_settings(INGEST_API_KEY=ingest_api_key)
     def test_post_without_credentials_is_rejected(self):
@@ -818,3 +860,592 @@ class DashboardAndLoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
+
+
+class ThrottlingTests(APITestCase):
+    ingest_api_key = "test-ingest-key"
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.node = Node.objects.create(node_id="NODE-001")
+
+    def limit(self, read="1000/min", ingest="1000/min", login="1000/min"):
+        return patch.object(
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": read, "ingest": ingest, "login": login},
+        )
+
+    def post_reading(self):
+        return self.client.post(
+            reverse("receive_reading"),
+            {},
+            format="json",
+            HTTP_X_API_KEY=self.ingest_api_key,
+        )
+
+    def test_read_requests_are_limited_per_ip(self):
+        with self.limit(read="3/min"):
+            statuses = [
+                self.client.get(reverse("dashboard_summary")).status_code
+                for _ in range(4)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 200, 429])
+
+    def test_throttled_response_tells_when_to_retry(self):
+        with self.limit(read="1/min"):
+            self.client.get(reverse("dashboard_summary"))
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreater(int(response["Retry-After"]), 0)
+
+    def test_read_limit_is_shared_by_all_get_endpoints(self):
+        with self.limit(read="2/min"):
+            first = self.client.get(reverse("dashboard_summary"))
+            second = self.client.get(reverse("receive_reading"))
+            third = self.client.get(reverse("alert_list"))
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(third.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_ingest_requests_are_limited_per_ip(self):
+        with self.limit(ingest="2/min"):
+            statuses = [self.post_reading().status_code for _ in range(3)]
+
+        self.assertEqual(statuses, [400, 400, 429])
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_ingest_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", ingest="5/min"):
+            for _ in range(3):
+                self.post_reading()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_settings(INGEST_API_KEY=ingest_api_key)
+    def test_exhausted_ingest_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", ingest="1/min"):
+            self.post_reading()
+            blocked = self.post_reading()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_requests_without_valid_key_are_rejected_before_counting(self):
+        with override_settings(INGEST_API_KEY=self.ingest_api_key):
+            with self.limit(ingest="1/min"):
+                responses = [
+                    self.client.post(reverse("receive_reading"), {}, format="json")
+                    for _ in range(3)
+                ]
+
+        self.assertEqual(
+            [response.status_code for response in responses],
+            [status.HTTP_401_UNAUTHORIZED] * 3,
+        )
+
+    def login(self, password="mala"):
+        return self.client.post(
+            reverse("api_token_auth"),
+            {"username": "operador", "password": password},
+            format="json",
+        )
+
+    def test_login_attempts_are_limited_per_ip(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="3/min"):
+            statuses = [self.login().status_code for _ in range(4)]
+
+        self.assertEqual(statuses, [400, 400, 400, 429])
+
+    def test_correct_password_is_also_blocked_once_the_limit_is_reached(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="2/min"):
+            self.login()
+            self.login()
+            response = self.login(password="buena")
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreater(int(response["Retry-After"]), 0)
+
+    def test_login_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", login="5/min"):
+            for _ in range(3):
+                self.login()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_exhausted_login_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", login="1/min"):
+            self.login()
+            blocked = self.login()
+            response = self.client.get(reverse("dashboard_summary"))
+
+        self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_login_still_returns_a_token_within_the_limit(self):
+        get_user_model().objects.create_user("operador", password="buena")
+
+        with self.limit(login="3/min"):
+            response = self.login(password="buena")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+    def test_settings_define_every_scope(self):
+        rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+
+        self.assertEqual(set(rates), {"read", "ingest", "login"})
+        self.assertIn(
+            "api.throttles.ReadThrottle",
+            settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],
+        )
+
+
+class ThrottleSettingsTests(SimpleTestCase):
+    def test_rate_uses_default_when_missing(self):
+        with patch.dict(os.environ, {"THROTTLE_READ_RATE": ""}):
+            self.assertEqual(_env_rate("THROTTLE_READ_RATE", "120/min"), "120/min")
+
+    def test_rate_is_parsed(self):
+        for value in ("5/sec", " 120/min ", "10/hour", "1000/day"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
+                    self.assertEqual(
+                        _env_rate("THROTTLE_READ_RATE", "120/min"), value.strip()
+                    )
+
+    def test_invalid_rate_is_rejected(self):
+        for value in ("abc", "120", "0/min", "-1/min", "10/year", "1.5/min"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_rate("THROTTLE_READ_RATE", "120/min")
+
+    def test_num_proxies_is_optional(self):
+        with patch.dict(os.environ, {"NUM_PROXIES": ""}):
+            self.assertIsNone(_env_non_negative_int("NUM_PROXIES"))
+
+    def test_num_proxies_accepts_zero_and_positive_values(self):
+        for value, expected in (("0", 0), ("1", 1), (" 2 ", 2)):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"NUM_PROXIES": value}):
+                    self.assertEqual(_env_non_negative_int("NUM_PROXIES"), expected)
+
+    def test_invalid_num_proxies_is_rejected(self):
+        for value in ("abc", "-1", "1.5"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"NUM_PROXIES": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_non_negative_int("NUM_PROXIES")
+
+
+class ReadAccessTests(APITestCase):
+    ingest_api_key = "test-ingest-key"
+
+    def setUp(self):
+        self.node = Node.objects.create(node_id="ACCESS-NODE")
+        self.reading = SensorReading.objects.create(
+            node=self.node,
+            temperature=20,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+        self.alert = Alert.objects.create(
+            node=self.node,
+            reading=self.reading,
+            level=Alert.Level.FIRE,
+            message="Alerta de prueba",
+        )
+        self.user = get_user_model().objects.create_user("operador", password="x")
+
+    def read_urls(self):
+        return {
+            "receive_reading": reverse("receive_reading"),
+            "dashboard_summary": reverse("dashboard_summary"),
+            "node_list": reverse("node-list"),
+            "node_detail": reverse("node-detail", args=[self.node.node_id]),
+            "node_status": reverse("node_status", args=[self.node.node_id]),
+            "node_readings": reverse("node_readings", args=[self.node.node_id]),
+            "alert_list": reverse("alert_list"),
+            "active_alerts": reverse("active_alerts"),
+            "alert_detail": reverse("alert_detail", args=[self.alert.pk]),
+        }
+
+    def test_reads_are_public_by_default(self):
+        self.assertTrue(settings_module.PUBLIC_READ_ACCESS)
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_require_authentication(self):
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                response = self.client.get(url)
+
+                self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_work_with_a_token(self):
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        for name, url in self.read_urls().items():
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_closed_reads_do_not_block_the_login(self):
+        response = self.client.post(
+            reverse("api_token_auth"),
+            {"username": "operador", "password": "x"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+    @override_settings(PUBLIC_READ_ACCESS=False, INGEST_API_KEY=ingest_api_key)
+    def test_closed_reads_do_not_block_ingestion_with_the_api_key(self):
+        response = self.client.post(
+            reverse("receive_reading"),
+            {
+                "node_id": self.node.node_id,
+                "temperature": 24.5,
+                "humidity": 48,
+                "smoke": 18,
+                "flame": False,
+                "timestamp": timezone.now().isoformat(),
+            },
+            format="json",
+            HTTP_X_API_KEY=self.ingest_api_key,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_writes_still_require_authentication_when_reads_are_public(self):
+        response = self.client.post(
+            reverse("node-list"), {"node_id": "NEW-NODE"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PaginationTests(APITestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="PAGE-NODE")
+        self.other_node = Node.objects.create(node_id="OTHER-NODE")
+        base = timezone.now() - timedelta(hours=1)
+        for index in range(5):
+            SensorReading.objects.create(
+                node=self.node,
+                temperature=20 + index,
+                humidity=50,
+                smoke=0,
+                flame=False,
+                timestamp=base + timedelta(minutes=index),
+            )
+        SensorReading.objects.create(
+            node=self.other_node,
+            temperature=30,
+            humidity=50,
+            smoke=0,
+            flame=False,
+        )
+
+    def temperatures(self, response):
+        return [item["temperature"] for item in response.data]
+
+    def test_offset_and_limit_select_a_page(self):
+        response = self.client.get(
+            reverse("receive_reading"),
+            {"node_id": "PAGE-NODE", "order": "asc", "limit": 2, "offset": 2},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.temperatures(response), [22, 23])
+
+    def test_total_count_ignores_the_page_but_respects_filters(self):
+        response = self.client.get(
+            reverse("receive_reading"), {"node_id": "PAGE-NODE", "limit": 2}
+        )
+
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response["X-Total-Count"], "5")
+
+    def test_total_count_counts_every_node_without_filter(self):
+        response = self.client.get(reverse("receive_reading"))
+
+        self.assertEqual(response["X-Total-Count"], "6")
+
+    def test_node_readings_endpoint_is_paginated_too(self):
+        response = self.client.get(
+            reverse("node_readings", args=["PAGE-NODE"]),
+            {"order": "asc", "limit": 3, "offset": 4},
+        )
+
+        self.assertEqual(self.temperatures(response), [24])
+        self.assertEqual(response["X-Total-Count"], "5")
+
+    def test_offset_past_the_end_returns_an_empty_list_with_total(self):
+        response = self.client.get(reverse("receive_reading"), {"offset": 100})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        self.assertEqual(response["X-Total-Count"], "6")
+
+    def test_default_limit_is_twenty_for_readings(self):
+        node = Node.objects.create(node_id="MANY-NODE")
+        SensorReading.objects.bulk_create(
+            SensorReading(
+                node=node, temperature=20, humidity=50, smoke=0, flame=False
+            )
+            for _ in range(25)
+        )
+
+        response = self.client.get(reverse("receive_reading"), {"node_id": "MANY-NODE"})
+
+        self.assertEqual(len(response.data), 20)
+        self.assertEqual(response["X-Total-Count"], "25")
+
+    def test_invalid_limit_and_offset_are_rejected(self):
+        for name, value in (
+            ("limit", "0"),
+            ("limit", "501"),
+            ("limit", "abc"),
+            ("offset", "-1"),
+            ("offset", "abc"),
+        ):
+            with self.subTest(name=name, value=value):
+                response = self.client.get(reverse("receive_reading"), {name: value})
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(name, str(response.data["errors"]))
+
+    def test_impossible_date_is_reported_as_a_date_error(self):
+        response = self.client.get(
+            reverse("receive_reading"), {"from": "2026-13-45T00:00:00Z"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("from", str(response.data["errors"]))
+        self.assertNotIn("limit", str(response.data["errors"]))
+
+    def test_alerts_are_paginated_with_a_default_of_one_hundred(self):
+        reading = SensorReading.objects.filter(node=self.node).first()
+        Alert.objects.bulk_create(
+            Alert(
+                node=self.node,
+                reading=reading,
+                level=Alert.Level.WARNING,
+                message=f"Alerta {index}",
+            )
+            for index in range(105)
+        )
+
+        default_page = self.client.get(reverse("alert_list"))
+        custom_page = self.client.get(reverse("alert_list"), {"limit": 10, "offset": 100})
+
+        self.assertEqual(len(default_page.data), 100)
+        self.assertEqual(default_page["X-Total-Count"], "105")
+        self.assertEqual(len(custom_page.data), 5)
+
+    def test_alert_total_respects_filters(self):
+        reading = SensorReading.objects.filter(node=self.node).first()
+        Alert.objects.create(
+            node=self.node, reading=reading, level=Alert.Level.FIRE, message="Fuego"
+        )
+        Alert.objects.create(
+            node=self.node, reading=reading, level=Alert.Level.WARNING, message="Aviso"
+        )
+
+        response = self.client.get(reverse("alert_list"), {"level": "FIRE"})
+
+        self.assertEqual(response["X-Total-Count"], "1")
+
+    def test_invalid_alert_limit_is_rejected(self):
+        response = self.client.get(reverse("alert_list"), {"limit": "501"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cors_exposes_the_pagination_header_to_the_frontend(self):
+        response = self.client.get(
+            reverse("receive_reading"), HTTP_ORIGIN="http://localhost:4200"
+        )
+
+        exposed = response["Access-Control-Expose-Headers"]
+        self.assertIn("X-Total-Count", exposed)
+        self.assertIn("Retry-After", exposed)
+
+
+class BooleanSettingsTests(SimpleTestCase):
+    def test_missing_variable_uses_the_default(self):
+        with patch.dict(os.environ, clear=False):
+            os.environ.pop("PRUEBA_BOOL", None)
+            self.assertIs(_env_bool("PRUEBA_BOOL", True), True)
+            self.assertIs(_env_bool("PRUEBA_BOOL", False), False)
+
+    def test_empty_or_blank_variable_uses_the_default(self):
+        for value in ("", "   "):
+            for default in (True, False):
+                with self.subTest(value=value, default=default):
+                    with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                        self.assertIs(_env_bool("PRUEBA_BOOL", default), default)
+
+    def test_true_values_are_accepted(self):
+        for value in ("true", "True", "TRUE", "1", "yes", "on", " true "):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    self.assertIs(_env_bool("PRUEBA_BOOL", False), True)
+
+    def test_false_values_are_accepted(self):
+        for value in ("false", "False", "FALSE", "0", "no", "off", " false "):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    self.assertIs(_env_bool("PRUEBA_BOOL", True), False)
+
+    def test_invalid_value_is_rejected_naming_the_variable(self):
+        for value in ("falso", "production", "2", "'False'"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    with self.assertRaisesMessage(ValueError, "PRUEBA_BOOL"):
+                        _env_bool("PRUEBA_BOOL", False)
+
+
+class ProcfileTests(SimpleTestCase):
+    def test_procfile_migrates_and_collects_static_before_starting_gunicorn(self):
+        procfile = (Path(settings_module.BASE_DIR) / "Procfile").read_text(
+            encoding="utf-8"
+        )
+
+        migrate = procfile.index("manage.py migrate --noinput")
+        collectstatic = procfile.index("manage.py collectstatic --noinput")
+        gunicorn = procfile.index("gunicorn config.wsgi:application")
+
+        self.assertLess(migrate, collectstatic)
+        self.assertLess(collectstatic, gunicorn)
+        self.assertIn("--bind 0.0.0.0:$PORT", procfile)
+
+
+@override_settings(CLIENT_IP_HEADER="CF-Connecting-IP")
+class ClientIPThrottlingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def limit(self, read="2/min"):
+        return patch.object(
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": read, "ingest": "1000/min", "login": "1000/min"},
+        )
+
+    def get(self, **headers):
+        return self.client.get(reverse("dashboard_summary"), **headers)
+
+    def test_each_client_ip_has_its_own_quota(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_CF_CONNECTING_IP="203.0.113.1")
+            second = self.get(HTTP_CF_CONNECTING_IP="203.0.113.2")
+            repeated = self.get(HTTP_CF_CONNECTING_IP="203.0.113.1")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(repeated.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_forged_forwarded_for_does_not_escape_the_limit(self):
+        with self.limit(read="2/min"):
+            statuses = [
+                self.get(
+                    HTTP_CF_CONNECTING_IP="203.0.113.1",
+                    HTTP_X_FORWARDED_FOR=f"198.51.100.{index}",
+                ).status_code
+                for index in range(3)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 429])
+
+    def test_ipv6_addresses_are_accepted(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_CF_CONNECTING_IP="2001:db8::1")
+            second = self.get(HTTP_CF_CONNECTING_IP="2001:db8::2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+    def test_invalid_header_value_falls_back_to_the_socket_address(self):
+        with self.limit(read="2/min"):
+            statuses = [
+                self.get(HTTP_CF_CONNECTING_IP=f"no-es-una-ip-{index}").status_code
+                for index in range(3)
+            ]
+
+        self.assertEqual(statuses, [200, 200, 429])
+
+    def test_missing_header_falls_back_to_the_socket_address(self):
+        with self.limit(read="1/min"):
+            first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
+            second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_empty_setting_keeps_the_default_forwarded_for_behaviour(self):
+        with override_settings(CLIENT_IP_HEADER=""):
+            with self.limit(read="1/min"):
+                first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
+                second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+
+    def test_ingest_and_login_quotas_use_the_same_client_ip(self):
+        user_model = get_user_model()
+        user_model.objects.create_user("operador", password="buena")
+        with patch.object(
+            SimpleRateThrottle,
+            "THROTTLE_RATES",
+            {"read": "1000/min", "ingest": "1000/min", "login": "1/min"},
+        ):
+            statuses = [
+                self.client.post(
+                    reverse("api_token_auth"),
+                    {"username": "operador", "password": "mala"},
+                    format="json",
+                    HTTP_CF_CONNECTING_IP=ip,
+                ).status_code
+                for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
+            ]
+
+        self.assertEqual(statuses, [400, 429, 400])
+
+
+class ClientIPSettingsTests(SimpleTestCase):
+    def test_header_is_optional(self):
+        with patch.dict(os.environ, {"CLIENT_IP_HEADER": ""}):
+            self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), "")
+
+    def test_valid_header_names_are_accepted(self):
+        for value in ("CF-Connecting-IP", " True-Client-IP ", "X-Real-IP"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
+                    self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), value.strip())
+
+    def test_invalid_header_names_are_rejected(self):
+        for value in ("CF Connecting IP", "CF_Connecting_IP", "-IP", "IP-", "a:b", "x\ny"):
+            with self.subTest(value=value):
+                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        _env_header_name("CLIENT_IP_HEADER")
