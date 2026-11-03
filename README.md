@@ -160,6 +160,35 @@ sus vecinos hasta `NEIGHBOR_WARNING_HOPS` saltos: hoy el aviso se registra en el
 (`Nodo X en FIRE: aviso a N nodo(s) vecino(s)...`) y es el punto de enganche de las
 notificaciones.
 
+## Estado en memoria
+
+Varias funciones guardan estado en la memoria del proceso para no consultar la base en
+cada petición:
+
+| Estado | Módulo | Estructura |
+| --- | --- | --- |
+| Últimas lecturas y ventana de temperatura por nodo | `services/live_readings.py` | `RecentItemsRing`, `RollingExtremesWindow` |
+| Estado de cada nodo (`/status/`) | `services/node_status_cache.py` | `LeastRecentlyUsedCache` |
+| Resumen del dashboard | `services/dashboard_cache.py` | `LeastRecentlyUsedCache` |
+| Lecturas duplicadas | `services/duplicate_readings.py` | `DuplicateBloomFilter` |
+| Búsqueda por prefijo | `services/node_search.py` | `PrefixTrie` |
+| Vecinos y zonas | `services/node_graph.py` | `AdjacencyGraph` |
+
+Qué hay que saber:
+
+- **Hilos:** las estructuras no son seguras entre hilos, así que cada servicio las protege
+  con un `threading.RLock` (`services/locking.py`) y solo un hilo a la vez las toca.
+- **Workers:** cada worker de gunicorn es un proceso distinto y tiene **su propia copia** de
+  todo este estado; no se comparte ni se sincroniza. Con varios workers, una caché puede
+  seguir mostrando un dato viejo hasta que caduque o se invalide en ese worker, y el
+  filtro de duplicados de un worker no conoce lo que vio otro. El `Procfile` arranca
+  gunicorn con su valor por defecto (un worker), donde esto no ocurre; si se añaden
+  workers o instancias, revisa las funciones anteriores.
+- **Reinicios:** todo se pierde al reiniciar el proceso y se reconstruye desde la base la
+  primera vez que se usa. La base de datos sigue siendo la única fuente de verdad.
+- **Pruebas:** cada estructura tiene sus pruebas en `api/test_structures.py` y cada uso en
+  su propio `api/test_*.py`; las pruebas limpian este estado entre casos.
+
 ## Acceso de lectura
 
 | Endpoint | Lectura (GET) | Escritura |

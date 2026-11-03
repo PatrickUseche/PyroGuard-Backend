@@ -87,18 +87,19 @@ debe protegerla con un `threading.Lock`. Además, cada proceso del servidor tien
 workers de gunicorn las instancias no se comparten ni se sincronizan (por eso las cachés pueden quedar desfasadas y
 el filtro de Bloom solo evita trabajo, nunca decide por sí solo).
 
-## Dónde se usarán
-Ya están implementadas y probadas; su uso en la API está planificado en `TASKS.md` (Fase 3). Esta tabla se actualiza
-a medida que cada task se completa.
+## Dónde se usan
+Las estructuras ya se usan en la API (Fase 3 de `TASKS.md`). Todo este estado vive en la memoria del
+proceso, está protegido con un `RLock` (`api/services/locking.py`) y se detalla en la sección «Estado
+en memoria» del README.
 
-| Estructura | Uso previsto | Task |
-|---|---|---|
-| `RecentItemsRing` | Últimas N lecturas por nodo y `GET /nodes/{id}/recent/` | 3.1, 3.2 |
-| `RollingExtremesWindow` | Máximo y mínimo de temperatura en `/nodes/{id}/status/` | 3.4, 3.5 |
-| `LeastRecentlyUsedCache` | Caché de `get_node_status` y del resumen del dashboard | 3.7, 3.8 |
-| `DuplicateBloomFilter` | Descartar lecturas duplicadas en la ingesta | 3.10 |
-| `PrefixTrie` | `GET /nodes/search/?prefix=` | 3.12 |
-| `PriorityMinHeap` | Alertas por severidad y `GET /dashboard/top-risk/` | 3.14, 3.15 |
-| `AdjacencyGraph` + `FirstInFirstOutQueue` | Vecinos y aviso a K saltos de un nodo en `FIRE` | 3.18, 3.20, 3.21 |
-| `DisjointSetUnion` | Zonas de riesgo en `GET /dashboard/zones/` | 3.22, 3.23 |
-| `PrefixSums` | Promedios de rango sobre series de lecturas (Fase 4) | — |
+| Estructura | Uso | Módulo | Task |
+|---|---|---|---|
+| `RecentItemsRing` | Últimas N lecturas por nodo y `GET /nodes/{id}/recent/` | `services/live_readings.py` | 3.1, 3.2 |
+| `RollingExtremesWindow` | Máximo y mínimo de temperatura en `/nodes/{id}/status/` | `services/live_readings.py` | 3.4, 3.5 |
+| `LeastRecentlyUsedCache` | Caché de `get_node_status` y del resumen del dashboard | `services/node_status_cache.py`, `services/dashboard_cache.py` | 3.7, 3.8 |
+| `DuplicateBloomFilter` | Descartar lecturas duplicadas en la ingesta | `services/duplicate_readings.py` | 3.10 |
+| `PrefixTrie` | `GET /nodes/search/?prefix=` | `services/node_search.py` | 3.12 |
+| `PriorityMinHeap` | Alertas activas por urgencia y `GET /dashboard/top-risk/` | `services/alert_ordering.py`, `services/nodes.py` | 3.14, 3.15 |
+| `AdjacencyGraph` + `FirstInFirstOutQueue` | Vecinos, `GET /nodes/{id}/neighbors/` y aviso a K saltos de un nodo en `FIRE` | `services/node_graph.py`, `services/neighbor_warnings.py` | 3.18, 3.20, 3.21 |
+| `DisjointSetUnion` | Zonas de riesgo en `GET /dashboard/zones/` | `services/risk_zones.py` | 3.22, 3.23 |
+| `PrefixSums` | Promedios de rango sobre series de lecturas (Fase 4) | — | 4.7 |
