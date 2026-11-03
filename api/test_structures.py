@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 from django.test import SimpleTestCase
 
+from .structures.adjacency_graph import AdjacencyGraph
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
@@ -1007,3 +1008,136 @@ class PrefixTrieTests(SimpleTestCase):
         for prefix in ("", "a", "ab", "abc", "ca", "cc", "bbb"):
             expected = sorted(word for word in words if word.startswith(prefix))
             self.assertEqual(trie.with_prefix(prefix), expected)
+
+
+class AdjacencyGraphTests(SimpleTestCase):
+    def build(self, edges, vertices=()):
+        graph = AdjacencyGraph()
+        for vertex in vertices:
+            graph.add_vertex(vertex)
+        for first, second in edges:
+            graph.add_edge(first, second)
+        return graph
+
+    def test_new_graph_is_empty(self):
+        graph = AdjacencyGraph()
+
+        self.assertEqual(len(graph), 0)
+        self.assertEqual(graph.vertices(), [])
+        self.assertEqual(graph.edge_count(), 0)
+
+    def test_edges_are_undirected_and_create_their_vertices(self):
+        graph = self.build([("a", "b")])
+
+        self.assertTrue(graph.has_edge("a", "b"))
+        self.assertTrue(graph.has_edge("b", "a"))
+        self.assertEqual(graph.neighbors("a"), {"b"})
+        self.assertEqual(graph.neighbors("b"), {"a"})
+        self.assertIn("a", graph)
+        self.assertEqual(len(graph), 2)
+
+    def test_repeated_edges_count_once(self):
+        graph = self.build([("a", "b"), ("b", "a"), ("a", "b")])
+
+        self.assertEqual(graph.edge_count(), 1)
+
+    def test_self_loops_are_rejected(self):
+        with self.assertRaises(ValueError):
+            AdjacencyGraph().add_edge("a", "a")
+
+    def test_neighbors_returns_a_copy(self):
+        graph = self.build([("a", "b")])
+
+        graph.neighbors("a").add("zzz")
+
+        self.assertEqual(graph.neighbors("a"), {"b"})
+
+    def test_unknown_vertex_raises_key_error(self):
+        graph = self.build([("a", "b")])
+
+        with self.assertRaises(KeyError):
+            graph.neighbors("x")
+        with self.assertRaises(KeyError):
+            graph.reachable_within("x", 2)
+        self.assertFalse(graph.has_edge("x", "a"))
+
+    def test_remove_edge(self):
+        graph = self.build([("a", "b"), ("b", "c")])
+
+        self.assertTrue(graph.remove_edge("a", "b"))
+        self.assertFalse(graph.remove_edge("a", "b"))
+        self.assertFalse(graph.has_edge("b", "a"))
+        self.assertIn("a", graph)
+        self.assertEqual(graph.edge_count(), 1)
+
+    def test_remove_vertex_removes_its_edges(self):
+        graph = self.build([("a", "b"), ("b", "c"), ("c", "a")])
+
+        self.assertTrue(graph.remove_vertex("b"))
+        self.assertFalse(graph.remove_vertex("b"))
+        self.assertNotIn("b", graph)
+        self.assertEqual(graph.neighbors("a"), {"c"})
+        self.assertEqual(graph.edge_count(), 1)
+
+    def test_bfs_reports_the_minimum_number_of_hops(self):
+        graph = self.build([("a", "b"), ("b", "c"), ("c", "d"), ("a", "d")])
+
+        self.assertEqual(graph.reachable_within("a"), {"b": 1, "d": 1, "c": 2})
+
+    def test_bfs_respects_the_hop_limit(self):
+        graph = self.build([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")])
+
+        self.assertEqual(graph.reachable_within("a", 0), {})
+        self.assertEqual(graph.reachable_within("a", 1), {"b": 1})
+        self.assertEqual(graph.reachable_within("a", 3), {"b": 1, "c": 2, "d": 3})
+        self.assertEqual(len(graph.reachable_within("a", 99)), 4)
+
+    def test_bfs_orders_results_by_distance(self):
+        graph = self.build([("a", "b"), ("b", "c"), ("c", "d"), ("a", "e")])
+
+        distances = list(graph.reachable_within("a").values())
+
+        self.assertEqual(distances, sorted(distances))
+
+    def test_bfs_ignores_isolated_vertices_and_other_components(self):
+        graph = self.build([("a", "b"), ("x", "y")], vertices=["solo"])
+
+        self.assertEqual(graph.reachable_within("a"), {"b": 1})
+        self.assertEqual(graph.reachable_within("solo"), {})
+
+    def test_bfs_terminates_on_cycles_and_never_includes_the_start(self):
+        graph = self.build([("a", "b"), ("b", "c"), ("c", "a")])
+
+        result = graph.reachable_within("a")
+
+        self.assertEqual(result, {"b": 1, "c": 1})
+        self.assertNotIn("a", result)
+
+    def test_bfs_rejects_an_invalid_limit(self):
+        graph = self.build([("a", "b")])
+
+        for limit in (-1, 1.5, "2", True):
+            with self.subTest(limit=limit):
+                with self.assertRaises(ValueError):
+                    graph.reachable_within("a", limit)
+
+    def test_bfs_matches_a_reference_on_random_graphs(self):
+        rng = random.Random(5)
+        for _ in range(20):
+            edges = {tuple(sorted(rng.sample(range(12), 2))) for _ in range(15)}
+            graph = self.build(edges, vertices=range(12))
+            start = rng.randrange(12)
+            expected = {start: 0}
+            frontier = [start]
+            while frontier:
+                following = []
+                for vertex in frontier:
+                    for first, second in edges:
+                        for here, there in ((first, second), (second, first)):
+                            if here == vertex and there not in expected:
+                                expected[there] = expected[vertex] + 1
+                                following.append(there)
+                frontier = following
+            del expected[start]
+
+            self.assertEqual(graph.reachable_within(start), expected)

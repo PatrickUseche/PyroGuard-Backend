@@ -57,7 +57,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(structures): trie para búsqueda por prefijo [2.14]
 - [x] test(structures): pruebas del trie (prefijos, borrado, mayúsculas) [2.15]
 - [x] feat(structures): grafo con lista de adyacencia y recorrido en anchura (BFS) por saltos [2.16]
-- [ ] test(structures): pruebas del grafo y del BFS (ciclos, nodos aislados, límite de saltos) [2.17]
+- [x] test(structures): pruebas del grafo y del BFS (ciclos, nodos aislados, límite de saltos) [2.17]
 - [ ] feat(structures): conjunto disjunto (Union-Find) con compresión de caminos y unión por rango [2.18]
 - [ ] test(structures): pruebas del Union-Find [2.19]
 - [ ] feat(structures): sumas de prefijos para promedios de rango en O(1) [2.20]
