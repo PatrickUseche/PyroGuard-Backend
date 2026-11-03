@@ -95,7 +95,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(nodes): modelo `NodeLink` para registrar qué nodos son vecinos, con migración [3.17]
 - [x] feat(nodes): construir el grafo de nodos a partir de `NodeLink` [3.18]
 - [x] feat(api): crear y listar los vecinos de un nodo [3.19]
-- [ ] feat(risk): avisar a los nodos vecinos hasta K saltos de un nodo en `FIRE` con BFS [3.20]
+- [x] feat(risk): avisar a los nodos vecinos hasta K saltos de un nodo en `FIRE` con BFS [3.20]
 - [ ] feat(api): `GET /nodes/{id}/neighbors/?hops=` [3.21]
 - [ ] feat(nodes): zonas de riesgo: agrupar con Union-Find los nodos conectados que están en riesgo [3.22]
 - [ ] feat(api): `GET /dashboard/zones/` [3.23]

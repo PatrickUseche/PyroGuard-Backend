@@ -9,6 +9,7 @@ from api.services.alerts import maybe_create_alert
 from api.services.dashboard_cache import dashboard_cache
 from api.services.duplicate_readings import duplicate_readings
 from api.services.live_readings import live_readings
+from api.services.neighbor_warnings import warn_neighbors_of_fire
 from api.services.node_status_cache import node_status_cache
 from api.services.risk_rules import evaluate_risk
 
@@ -95,6 +96,15 @@ def ingest_reading(serializer):
     # señales, así que al terminar se descarta el estado cacheado del nodo.
     node_status_cache.invalidate(reading.node.node_id)
     dashboard_cache.invalidate()
+
+    if risk_level == RiskAssessment.RiskLevel.FIRE:
+        try:
+            warn_neighbors_of_fire(node_id)
+        except Exception:
+            logger.exception(
+                "No se pudo avisar a los vecinos del nodo %s; se conserva la lectura.",
+                node_id,
+            )
 
     try:
         live_readings.record(reading)
