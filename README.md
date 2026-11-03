@@ -75,6 +75,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AI_ASYNC_EVALUATION` | Si es `True`, la ingesta no espera a la IA: deja la evaluación pendiente para `drain_ai_queue` (ver «Evaluación diferida de la IA») | `False` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
+| `LOG_FORMAT` | Formato de los logs: `text` o `json` (una línea JSON por registro, con `request_id`) | `text` |
 | `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
@@ -285,6 +286,19 @@ un recorrido en anchura. Cuando una lectura deja un nodo en `FIRE`, la ingesta a
 sus vecinos hasta `NEIGHBOR_WARNING_HOPS` saltos: hoy el aviso se registra en el log
 (`Nodo X en FIRE: aviso a N nodo(s) vecino(s)...`) y es el punto de enganche de las
 notificaciones.
+
+## Logs y trazabilidad
+
+Cada petición recibe un `request_id`: se reutiliza el `X-Request-ID` que mande el cliente o el proxy
+(si tiene solo letras, números, `.`, `_` y `-`, hasta 64 caracteres) y si no se genera uno. Aparece en todos
+los logs de esa petición, también los de la ingesta y los avisos, y se devuelve en la cabecera de la
+respuesta `X-Request-ID` (expuesta por CORS). Con `LOG_FORMAT=json` cada registro es una línea JSON:
+
+```json
+{"time": "2026-10-30T12:00:01.532+00:00", "level": "INFO", "logger": "api.readings", "message": "Lectura recibida node_id=SIM-001 risk_level=NORMAL ai_status=OK", "request_id": "3f2a9c1e5b7d4a60a1c2d3e4f5061728"}
+```
+
+Fuera de una petición (comandos, tareas programadas) el `request_id` es `-`.
 
 ## Estado en memoria
 

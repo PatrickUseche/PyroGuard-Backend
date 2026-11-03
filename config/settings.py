@@ -160,6 +160,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "api.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -257,7 +258,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.vercel\.app$",
 ]
 # Sin esto el navegador oculta estas cabeceras al JavaScript del frontend.
-CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After"]
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "Retry-After", "X-Request-ID"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -345,19 +346,28 @@ AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 AI_ASYNC_EVALUATION = _env_bool("AI_ASYNC_EVALUATION", False)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+# "text" (legible, por defecto) o "json" (una línea JSON por registro, para agregadores de logs).
+LOG_FORMAT = os.getenv("LOG_FORMAT", "text").strip().lower() or "text"
+if LOG_FORMAT not in {"text", "json"}:
+    raise ImproperlyConfigured("LOG_FORMAT debe ser 'text' o 'json'.")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "api.logging_utils.RequestIdFilter"},
+    },
     "formatters": {
-        "simple": {
-            "format": "{levelname} {asctime} {name}: {message}",
+        "text": {
+            "format": "{levelname} {asctime} {name} [{request_id}]: {message}",
             "style": "{",
         },
+        "json": {"()": "api.logging_utils.JsonFormatter"},
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "simple",
+            "formatter": LOG_FORMAT,
+            "filters": ["request_id"],
         },
     },
     "root": {
