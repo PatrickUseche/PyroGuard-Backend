@@ -272,6 +272,8 @@ AUTO_REGISTER_NODES = _env_bool("AUTO_REGISTER_NODES", False)
 PUBLIC_READ_ACCESS = _env_bool("PUBLIC_READ_ACCESS", True)
 # Cuántas lecturas recientes guarda en memoria cada nodo (ver services/live_readings.py).
 RECENT_READINGS_PER_NODE = _env_positive_int("RECENT_READINGS_PER_NODE", 50)
+# Cuántas lecturas cubre la ventana de temperatura máxima y mínima de cada nodo.
+TEMPERATURE_WINDOW_SIZE = _env_positive_int("TEMPERATURE_WINDOW_SIZE", 20)
 
 # Servicio PyroGuard-IA (contrato v1.0). Sin URL, la IA queda deshabilitada y
 # el riesgo se evalúa solo con las reglas del backend.
