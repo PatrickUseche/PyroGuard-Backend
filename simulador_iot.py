@@ -150,8 +150,7 @@ def send_data(args, sleep=time.sleep, max_rounds=None):
             rounds += 1
             sleep(args.interval)
     except KeyboardInterrupt:
-        print("
-Simulador detenido por el usuario.")
+        print("\nSimulador detenido por el usuario.")
 
 
 if __name__ == "__main__":
