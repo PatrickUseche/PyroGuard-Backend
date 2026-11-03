@@ -6,6 +6,7 @@ from django.utils import timezone
 from api.models import Node, RiskAssessment
 from api.services.ai_client import AIPrediction, request_prediction
 from api.services.alerts import maybe_create_alert
+from api.services.live_readings import live_readings
 from api.services.risk_rules import evaluate_risk
 
 
@@ -66,6 +67,15 @@ def ingest_reading(serializer):
     except Exception:
         logger.exception(
             "Falló el procesamiento posterior de la lectura id=%s; "
+            "se conserva la lectura.",
+            reading.pk,
+        )
+
+    try:
+        live_readings.record(reading)
+    except Exception:
+        logger.exception(
+            "No se pudo guardar la lectura id=%s en el buffer reciente; "
             "se conserva la lectura.",
             reading.pk,
         )

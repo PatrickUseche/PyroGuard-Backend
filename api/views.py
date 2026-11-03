@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -14,6 +15,7 @@ from .models import Alert, Node, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import ingest_reading
+from .services.live_readings import live_readings
 from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
 from .services.pagination import TOTAL_COUNT_HEADER, paginate
 from .throttles import IngestThrottle, ReadThrottle
@@ -56,6 +58,26 @@ class NodeReadingsView(APIView):
             SensorReadingSerializer(page, many=True).data,
             headers={TOTAL_COUNT_HEADER: total},
         )
+
+
+class NodeRecentReadingsView(APIView):
+    """Últimas lecturas del nodo servidas desde el buffer en memoria."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+
+    def get(self, request, node_id):
+        node = get_object_or_404(Node, node_id=node_id)
+        capacity = settings.RECENT_READINGS_PER_NODE
+        raw_limit = request.query_params.get("limit")
+        limit = capacity
+        if raw_limit is not None:
+            try:
+                limit = int(raw_limit)
+            except ValueError:
+                raise ParseError("'limit' debe ser un número entero.") from None
+            if not 1 <= limit <= capacity:
+                raise ParseError(f"'limit' debe estar entre 1 y {capacity}.")
+        return Response(live_readings.recent(node, limit))
 
 
 class DashboardSummaryView(APIView):

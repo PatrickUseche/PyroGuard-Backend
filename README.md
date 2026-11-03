@@ -55,6 +55,7 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `NODE_OFFLINE_THRESHOLD_SECONDS` | Segundos sin comunicación para marcar OFFLINE | `300` |
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
+| `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
@@ -88,6 +89,7 @@ se registra una advertencia.
 | `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
+| `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
 | `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo |
 | `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial; `/alerts/` acepta `limit` (por defecto 100) y `offset` |
