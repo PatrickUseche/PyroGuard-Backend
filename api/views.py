@@ -20,6 +20,8 @@ from .services.live_readings import live_readings
 from .services.node_graph import node_graph
 from .services.node_search import node_search_index
 from .services.risk_zones import get_risk_zones
+from .services.series import merge_sorted
+from .services.series_queries import load_series, parse_series_query
 from .services.nodes import (
     get_dashboard_summary,
     get_node_status,
@@ -221,6 +223,48 @@ class DashboardZonesView(APIView):
 
     def get(self, request):
         return Response(get_risk_zones())
+
+
+class ReadingSeriesView(APIView):
+    """Serie histórica de un campo para uno o varios nodos (la usa el gráfico del frontend)."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+
+    def get(self, request):
+        query = parse_series_query(request.query_params)
+        series = []
+        for node_id in query.node_ids:
+            node_series = load_series(query, node_id)
+            first, stop = node_series.index_range(query.start, query.end)
+            entry = {
+                "node_id": node_id,
+                "count": stop - first,
+                "average": node_series.mean_between(query.start, query.end),
+            }
+            if query.step is None:
+                entry["points"] = [
+                    {"timestamp": timestamp, "value": value}
+                    for timestamp, value in node_series.points_between(query.start, query.end)
+                ]
+            else:
+                entry["buckets"] = node_series.buckets(query.start, query.end, query.step)
+            series.append(entry)
+
+        body = {
+            "field": query.field,
+            "from": query.start,
+            "to": query.end,
+            "step": query.step,
+            "series": series,
+        }
+        if query.merge:
+            # Todas las series en una sola línea de tiempo (mezcla de k listas ordenadas).
+            detail, time_key = ("points", "timestamp") if query.step is None else ("buckets", "start")
+            body["merged"] = merge_sorted(
+                [[{"node_id": entry["node_id"], **item} for item in entry[detail]] for entry in series],
+                key=lambda item: item[time_key],
+            )
+        return Response(body)
 
 
 class ReceiveMeasurementView(APIView):
