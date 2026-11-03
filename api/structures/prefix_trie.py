@@ -42,10 +42,11 @@ class PrefixTrie:
 
     def insert(self, word):
         """Agrega ``word``; devuelve ``True`` si era nueva y ``False`` si ya estaba."""
-        if not word:
+        key = self._key(word)
+        if not key:
             raise ValueError("La palabra no puede estar vacía.")
         branch = self._root
-        for char in self._key(word):
+        for char in key:
             branch = branch.children.setdefault(char, _TrieBranch())
         if branch.word is not None:
             return False
