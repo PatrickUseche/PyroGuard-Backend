@@ -107,9 +107,9 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(readings): comando `purge_readings` con retención configurable por variable de entorno [4.1]
 - [x] test(readings): pruebas de `purge_readings` [4.2]
 - [x] docs(readings): documentar la retención en el README [4.3]
-- [ ] feat(readings): modelo `ReadingHourly` con los agregados por hora, con migración [4.4]
-- [ ] feat(readings): comando `aggregate_readings` que rellena los agregados [4.5]
-- [ ] test(readings): pruebas de los agregados por hora [4.6]
+- [x] feat(readings): modelo `ReadingHourly` con los agregados por hora, con migración [4.4]
+- [x] feat(readings): comando `aggregate_readings` que rellena los agregados [4.5]
+- [x] test(readings): pruebas de los agregados por hora [4.6]
 - [ ] feat(readings): promedios de rango sobre la serie con sumas de prefijos [4.7]
 - [ ] feat(api): `GET /readings/series/` que localiza el rango con búsqueda binaria [4.8] (lo consume el frontend [2.5])
 - [ ] feat(api): combinar las series de varios nodos con una mezcla de K listas ordenadas (montículo) [4.9]

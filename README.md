@@ -153,6 +153,15 @@ python manage.py purge_readings --batch-size 500
 Borra por lotes (`--batch-size`, 1000 por defecto) para no bloquear la base. Conviene
 programarlo a diario (por ejemplo, un Cron Job de Render); el comando no se ejecuta solo.
 
+## Agregados por hora
+
+`python manage.py aggregate_readings` guarda en `ReadingHourly` el resumen por nodo y hora
+(cantidad, temperatura mínima/media/máxima, humedad media, humo máximo y lecturas con llama).
+Es idempotente: recalcula desde la última hora ya resumida, de modo que se puede programar
+cada hora. Los resúmenes **no se borran con `purge_readings`**, así que conviene agregar
+antes de purgar. `--all` recalcula todo, pero no lo uses después de purgar porque
+sobrescribiría con datos incompletos.
+
 ## Lecturas duplicadas
 
 Un sensor que reintenta un envío repite la lectura. Dos lecturas con el mismo nodo y

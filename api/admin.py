@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Alert, Node, NodeLink, RiskAssessment, SensorReading
+from .models import Alert, Node, NodeLink, ReadingHourly, RiskAssessment, SensorReading
 
 
 @admin.register(Node)
@@ -65,3 +65,10 @@ class AlertAdmin(admin.ModelAdmin):
 class NodeLinkAdmin(admin.ModelAdmin):
     list_display = ("node_a", "node_b", "created_at")
     search_fields = ("node_a__node_id", "node_b__node_id")
+
+
+@admin.register(ReadingHourly)
+class ReadingHourlyAdmin(admin.ModelAdmin):
+    list_display = ("node", "hour", "reading_count", "temperature_avg", "temperature_max")
+    list_filter = ("hour",)
+    search_fields = ("node__node_id",)
