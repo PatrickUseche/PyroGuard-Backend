@@ -86,6 +86,25 @@ python manage.py runserver
 
 El panel de administración queda en `http://localhost:8000/admin/`.
 
+## Seguridad en producción
+
+Con `DEBUG=False` se activan automáticamente (`config/security.py`):
+
+| Ajuste | Valor | Para qué |
+| --- | --- | --- |
+| `SECURE_SSL_REDIRECT` | `True` | Redirige HTTP a HTTPS (excepto `/api/health/`, que usan los chequeos de la plataforma) |
+| `SECURE_PROXY_SSL_HEADER` | `X-Forwarded-Proto: https` | Render termina el HTTPS en su proxy; sin confiar en esta cabecera la redirección haría un bucle |
+| `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` | `True` | Las cookies solo viajan por HTTPS |
+| `SECURE_HSTS_SECONDS` | 30 días | El navegador exige HTTPS en ese dominio |
+| Cookies | `HttpOnly` (sesión) y `SameSite=Lax` | Menos exposición ante scripts y CSRF |
+| `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` | `DENY`, `nosniff`, `same-origin` | Cabeceras contra clickjacking y sniffing |
+
+Cada ajuste se puede sobrescribir con una variable de entorno del mismo nombre (ver `.env.example`).
+`SECURE_HSTS_SECONDS` empieza en un mes para poder deshacerlo si algo falla; cuando todo funcione por HTTPS
+súbelo (p. ej. `31536000`). `SECURE_HSTS_INCLUDE_SUBDOMAINS` y `SECURE_HSTS_PRELOAD` quedan apagados: solo
+actívalos si **todos** los subdominios deben servirse por HTTPS. Para revisarlo:
+`python manage.py check --deploy` (con `DEBUG=False`; solo deben quedar esas dos advertencias).
+
 ## Docker
 
 Con Docker y Docker Compose se levanta todo sin instalar Python ni PostgreSQL: el backend, PyroGuard-IA y
