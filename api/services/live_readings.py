@@ -16,9 +16,9 @@ from django.conf import settings
 
 from api.models import SensorReading
 from api.serializers import SensorReadingSerializer
+from api.services.locking import synchronized
 from api.structures.recent_items_ring import RecentItemsRing
 from api.structures.rolling_extremes_window import RollingExtremesWindow
-from api.services.locking import synchronized
 
 
 class LiveReadingsStore:

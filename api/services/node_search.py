@@ -13,8 +13,8 @@ el proceso: se pierde al reiniciar y cada worker tiene el suyo.
 import threading
 
 from api.models import Node
-from api.structures.prefix_trie import PrefixTrie
 from api.services.locking import synchronized
+from api.structures.prefix_trie import PrefixTrie
 
 
 class NodeSearchIndex:

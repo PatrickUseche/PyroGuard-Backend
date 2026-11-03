@@ -82,7 +82,7 @@ class TimeSeries:
 
     def points_between(self, start=None, end=None):
         first, stop = self.index_range(start, end)
-        return list(zip(self._timestamps[first:stop], self._values[first:stop]))
+        return list(zip(self._timestamps[first:stop], self._values[first:stop], strict=True))
 
     def buckets(self, start, end, step_seconds):
         """Promedio por tramos de ``step_seconds`` alineados al reloj (UTC).

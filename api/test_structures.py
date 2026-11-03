@@ -188,9 +188,9 @@ class RollingExtremesWindowTests(SimpleTestCase):
         self.assertTrue(window.is_empty())
         self.assertEqual(len(window), 0)
         with self.assertRaises(ValueError):
-            window.maximum
+            _ = window.maximum
         with self.assertRaises(ValueError):
-            window.minimum
+            _ = window.minimum
 
     def test_only_numbers_are_accepted(self):
         window = RollingExtremesWindow(3)
@@ -607,7 +607,7 @@ class LeastRecentlyUsedCacheTests(SimpleTestCase):
         cache.get("a")
         cache.get("zzz")
         cache.peek("a")
-        "a" in cache
+        self.assertIn("a", cache)
 
         self.assertEqual((cache.hits, cache.misses), (2, 1))
         cache.reset_stats()

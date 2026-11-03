@@ -13,7 +13,6 @@ from .models import Node, NodeLink, RiskAssessment, SensorReading
 from .services.node_graph import node_graph
 from .services.risk_zones import get_risk_zones
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

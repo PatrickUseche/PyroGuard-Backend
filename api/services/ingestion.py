@@ -14,7 +14,6 @@ from api.services.neighbor_warnings import warn_neighbors_of_fire
 from api.services.node_status_cache import node_status_cache
 from api.services.risk_rules import evaluate_risk
 
-
 logger = logging.getLogger("api.readings")
 
 

@@ -1,5 +1,6 @@
 """Pruebas de los canales de notificación con envío simulado."""
 import os
+from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -37,7 +38,7 @@ class NotifierInterfaceTests(SimpleTestCase):
         self.assertTrue(Minimal().is_configured())
 
     def test_notifications_are_immutable(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(FrozenInstanceError):
             notification().subject = "otro"
 
     def test_every_channel_has_a_unique_name(self):

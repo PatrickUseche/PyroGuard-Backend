@@ -6,13 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import requests
-
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
-from django.test import TestCase, TransactionTestCase, override_settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -37,7 +35,6 @@ from .serializers import SensorReadingSerializer
 from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
-
 
 _unlimited_rates = patch.object(
     SimpleRateThrottle,

@@ -1,10 +1,9 @@
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ParseError
-
 
 logger = logging.getLogger("api.readings")
 

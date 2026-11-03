@@ -14,8 +14,8 @@ import threading
 
 from django.conf import settings
 
-from api.structures.least_recently_used_cache import LeastRecentlyUsedCache
 from api.services.locking import synchronized
+from api.structures.least_recently_used_cache import LeastRecentlyUsedCache
 
 
 class NodeStatusCache:

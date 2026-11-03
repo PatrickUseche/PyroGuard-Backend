@@ -20,7 +20,6 @@ from rest_framework.throttling import SimpleRateThrottle
 
 from .models import Node, RiskAssessment, SensorReading
 
-
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",

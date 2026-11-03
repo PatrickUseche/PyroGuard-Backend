@@ -2,7 +2,6 @@ import logging
 
 from rest_framework.exceptions import ParseError
 
-
 logger = logging.getLogger("api.readings")
 
 MAX_LIMIT = 500

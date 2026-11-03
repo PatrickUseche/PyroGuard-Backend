@@ -1,5 +1,6 @@
 """Pruebas de los agregados por hora (ReadingHourly y aggregate_readings)."""
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from io import StringIO
 
 from django.core.management import call_command

@@ -9,8 +9,8 @@ reiniciar y cada worker tiene su copia.
 import threading
 
 from api.models import NodeLink
-from api.structures.adjacency_graph import AdjacencyGraph
 from api.services.locking import synchronized
+from api.structures.adjacency_graph import AdjacencyGraph
 
 
 class NodeGraph:
