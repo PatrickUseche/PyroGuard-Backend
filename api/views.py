@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ParseError
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,6 +13,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from .models import Alert, Node, NodeLink, SensorReading
+from . import openapi as o
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.health import get_health
@@ -51,6 +53,13 @@ class NodeViewSet(ModelViewSet):
 class NodeStatusView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Estado de un nodo",
+        description="Conexión, última lectura, riesgo actual, ventana de temperatura y alertas activas. "
+        "Si el nodo está OFFLINE el riesgo es el último conocido (`current_risk_stale=true`).",
+        responses={200: o.NodeStatusSerializer, 404: o.ErrorSerializer},
+        examples=[o.EXAMPLE_NODE_STATUS],
+    )
     def get(self, request, node_id):
         return Response(get_node_status(node_id))
 
@@ -58,6 +67,11 @@ class NodeStatusView(APIView):
 class NodeReadingsView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Lecturas de un nodo",
+        parameters=[o.LIMIT, o.OFFSET, o.FROM, o.TO, o.RANGE, o.ORDER, o.TOTAL_COUNT_HEADER],
+        responses={200: SensorReadingSerializer(many=True), 404: o.ErrorSerializer},
+    )
     def get(self, request, node_id):
         node = get_object_or_404(Node, node_id=node_id)
         readings = SensorReading.objects.filter(node=node).select_related(
@@ -77,6 +91,13 @@ class NodeRecentReadingsView(APIView):
 
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Últimas lecturas de un nodo (desde memoria)",
+        description="De la más nueva a la más antigua, servidas desde un buffer en memoria sin consultar la base. "
+        "La primera consulta tras un reinicio lo carga de la base.",
+        parameters=[OpenApiParameter("limit", int, description="1 a `RECENT_READINGS_PER_NODE`; por defecto todas.")],
+        responses={200: SensorReadingSerializer(many=True), 400: o.ErrorSerializer, 404: o.ErrorSerializer},
+    )
     def get(self, request, node_id):
         node = get_object_or_404(Node, node_id=node_id)
         capacity = settings.RECENT_READINGS_PER_NODE
@@ -97,12 +118,22 @@ class NodeLinksView(APIView):
 
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Vecinos directos de un nodo",
+        responses={200: o.NodeLinksSerializer, 404: o.ErrorSerializer},
+    )
     def get(self, request, node_id):
         get_object_or_404(Node, node_id=node_id)
         return Response(
             {"node_id": node_id, "neighbors": node_graph.direct_neighbors(node_id)}
         )
 
+    @extend_schema(
+        summary="Registrar un vecino",
+        description="Requiere autenticación. La relación no tiene dirección.",
+        request=o.NodeLinkRequestSerializer,
+        responses={201: o.NodeLinkCreatedSerializer, 400: o.ErrorSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
+    )
     def post(self, request, node_id):
         node = get_object_or_404(Node, node_id=node_id)
         neighbor_id = request.data.get("neighbor") if hasattr(request.data, "get") else None
@@ -136,6 +167,12 @@ class NodeNeighborsView(APIView):
     default_hops = 1
     max_hops = 10
 
+    @extend_schema(
+        summary="Nodos alcanzables en K saltos",
+        description="Recorrido en anchura sobre el grafo de vecinos, ordenado por distancia y luego por id.",
+        parameters=[OpenApiParameter("hops", int, description="1 a 10; por defecto 1.")],
+        responses={200: o.NodeNeighborsSerializer, 400: o.ErrorSerializer, 404: o.ErrorSerializer},
+    )
     def get(self, request, node_id):
         get_object_or_404(Node, node_id=node_id)
         raw_hops = request.query_params.get("hops")
@@ -158,6 +195,11 @@ class NodeNeighborsView(APIView):
 class NodeLinkDetailView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Quitar el vínculo entre dos nodos",
+        description="Requiere autenticación.",
+        responses={204: None, 404: o.ErrorSerializer},
+    )
     def delete(self, request, node_id, neighbor_id):
         node = get_object_or_404(Node, node_id=node_id)
         neighbor = get_object_or_404(Node, node_id=neighbor_id)
@@ -174,6 +216,15 @@ class NodeSearchView(APIView):
     default_limit = 20
     max_limit = 100
 
+    @extend_schema(
+        summary="Buscar nodos por prefijo",
+        description="Autocompletado por el comienzo del `node_id`, sin distinguir mayúsculas.",
+        parameters=[
+            OpenApiParameter("prefix", str, description="Comienzo del identificador; vacío lista los primeros."),
+            OpenApiParameter("limit", int, description="1 a 100; por defecto 20."),
+        ],
+        responses={200: o.NodeSearchSerializer, 400: o.ErrorSerializer},
+    )
     def get(self, request):
         prefix = request.query_params.get("prefix", "").strip()
         raw_limit = request.query_params.get("limit")
@@ -197,6 +248,13 @@ class HealthView(APIView):
     authentication_classes = []
     throttle_classes = []
 
+    @extend_schema(
+        summary="Estado del backend",
+        description="200 si la base responde (`ok`, o `degraded` si la IA configurada no responde); 503 si la base está caída.",
+        responses={200: o.HealthSerializer, 503: o.HealthSerializer},
+        examples=[o.EXAMPLE_HEALTH_DEGRADED],
+        auth=[],
+    )
     def get(self, request):
         body, http_status = get_health()
         return Response(body, status=http_status)
@@ -205,6 +263,12 @@ class HealthView(APIView):
 class DashboardSummaryView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Resumen del dashboard",
+        description="Conteos de nodos, riesgo global (solo nodos online), alertas activas y última lectura por nodo. "
+        "Se reutiliza durante `DASHBOARD_CACHE_SECONDS`.",
+        responses={200: o.DashboardSummarySerializer},
+    )
     def get(self, request):
         return Response(get_dashboard_summary())
 
@@ -216,6 +280,11 @@ class DashboardTopRiskView(APIView):
     default_k = 5
     max_k = 50
 
+    @extend_schema(
+        summary="Los K nodos de mayor riesgo",
+        parameters=[OpenApiParameter("k", int, description="1 a 50; por defecto 5.")],
+        responses={200: o.TopRiskNodeSerializer(many=True), 400: o.ErrorSerializer},
+    )
     def get(self, request):
         raw_k = request.query_params.get("k")
         k = self.default_k
@@ -234,6 +303,12 @@ class DashboardZonesView(APIView):
 
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Zonas de riesgo",
+        description="Grupos de nodos vecinos conectados que están en WARNING o FIRE a la vez (solo nodos online).",
+        responses={200: o.RiskZoneSerializer(many=True)},
+        examples=[o.EXAMPLE_ZONES],
+    )
     def get(self, request):
         return Response(get_risk_zones())
 
@@ -243,6 +318,21 @@ class ReadingSeriesView(APIView):
 
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Serie histórica de un campo",
+        description="Uno o varios nodos; con `step` devuelve el promedio por tramos y sin él los puntos. "
+        "Con `merge=true` añade todos los nodos en una sola línea de tiempo.",
+        parameters=[
+            OpenApiParameter("node_id", str, many=True, required=True, description="Hasta 10; repetido o separado por comas."),
+            OpenApiParameter("field", str, enum=["temperature", "humidity", "smoke", "gas"], description="Por defecto `temperature`."),
+            o.FROM,
+            o.TO,
+            OpenApiParameter("step", int, description="Segundos por tramo (1 a 86400)."),
+            OpenApiParameter("merge", bool, description="Mezcla los nodos en una sola línea de tiempo."),
+        ],
+        responses={200: o.SeriesResponseSerializer, 400: o.ErrorSerializer, 404: o.ErrorSerializer},
+        examples=[o.EXAMPLE_SERIES],
+    )
     def get(self, request):
         query = parse_series_query(request.query_params)
         series = []
@@ -284,6 +374,14 @@ class ReceiveMeasurementView(APIView):
     permission_classes = [IsAuthenticatedOrIngestAPIKey]
     throttle_classes = [ReadThrottle, IngestThrottle]
 
+    @extend_schema(
+        summary="Ingresar una lectura",
+        description="Requiere `X-API-Key`. Evalúa el riesgo (reglas + IA) y puede crear o actualizar una alerta. "
+        "Una lectura repetida (mismo nodo y `timestamp`) responde 200 con `status: duplicate` y no guarda nada.",
+        request=SensorReadingSerializer,
+        responses={201: o.IngestResponseSerializer, 200: o.IngestResponseSerializer, 400: o.ErrorSerializer, 401: o.ErrorSerializer},
+        examples=[o.EXAMPLE_INGEST_REQUEST, o.EXAMPLE_FIRE_REQUEST],
+    )
     def post(self, request):
         serializer = SensorReadingSerializer(data=request.data)
         if not serializer.is_valid():
@@ -318,6 +416,11 @@ class ReceiveMeasurementView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
+    @extend_schema(
+        summary="Listar lecturas",
+        parameters=[OpenApiParameter("node_id", str, description="Filtra por nodo."), o.LIMIT, o.OFFSET, o.FROM, o.TO, o.RANGE, o.ORDER, o.TOTAL_COUNT_HEADER],
+        responses={200: SensorReadingSerializer(many=True)},
+    )
     def get(self, request):
         readings = SensorReading.objects.select_related("node", "assessment")
 
@@ -337,6 +440,16 @@ class ReceiveMeasurementView(APIView):
 class AlertListView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Historial de alertas",
+        parameters=[
+            OpenApiParameter("status", str, enum=["ACTIVE", "ACKNOWLEDGED", "CLOSED"]),
+            OpenApiParameter("level", str, enum=["WARNING", "FIRE"]),
+            OpenApiParameter("node_id", str),
+            o.FROM, o.TO, o.LIMIT, o.OFFSET, o.TOTAL_COUNT_HEADER,
+        ],
+        responses={200: AlertSerializer(many=True)},
+    )
     def get(self, request):
         alerts = Alert.objects.select_related("node", "reading")
         status_filter = request.query_params.get("status")
@@ -375,6 +488,11 @@ class AlertListView(APIView):
 class ActiveAlertListView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(
+        summary="Alertas activas por urgencia",
+        description="`FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero.",
+        responses={200: AlertSerializer(many=True)},
+    )
     def get(self, request):
         alerts = Alert.objects.filter(
             status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED]
@@ -386,6 +504,7 @@ class ActiveAlertListView(APIView):
 class AlertDetailView(APIView):
     permission_classes = [IsAuthenticatedOrPublicRead]
 
+    @extend_schema(summary="Detalle de una alerta", responses={200: AlertSerializer, 404: o.ErrorSerializer})
     def get(self, request, alert_id):
         alert = get_object_or_404(
             Alert.objects.select_related("node", "reading"),
@@ -433,9 +552,21 @@ class AlertTransitionView(APIView):
         return Response(AlertSerializer(alert).data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    summary="Reconocer una alerta",
+    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    request=None,
+    responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
+)
 class AcknowledgeAlertView(AlertTransitionView):
     target_status = Alert.Status.ACKNOWLEDGED
 
 
+@extend_schema(
+    summary="Cerrar una alerta",
+    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    request=None,
+    responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
+)
 class CloseAlertView(AlertTransitionView):
     target_status = Alert.Status.CLOSED

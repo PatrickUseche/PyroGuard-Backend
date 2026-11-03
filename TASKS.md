@@ -143,11 +143,11 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(api): `GET /health/` con el estado de la base de datos [6.4] (lo usa el frontend [2.6])
 - [x] feat(api): estado de la IA dentro de `/health/` [6.5]
 - [x] test(api): pruebas de `/health/` con la base y la IA caídas [6.6]
-- [ ] chore(deps): añadir drf-spectacular [6.7]
-- [ ] docs(api): esquema OpenAPI y `GET /api/schema/` [6.8]
-- [ ] docs(api): descripciones y ejemplos de los serializers en el esquema [6.9]
-- [ ] docs: README de arquitectura con el flujo sensor → backend → IA → alertas [6.10]
-- [ ] docs: actualizar la tabla de endpoints del README [6.11]
+- [x] chore(deps): añadir drf-spectacular [6.7]
+- [x] docs(api): esquema OpenAPI y `GET /api/schema/` [6.8]
+- [x] docs(api): descripciones y ejemplos de los serializers en el esquema [6.9]
+- [x] docs: README de arquitectura con el flujo sensor → backend → IA → alertas [6.10]
+- [x] docs: actualizar la tabla de endpoints del README [6.11]
 
 ## Fase 7 — Calidad y entorno
 

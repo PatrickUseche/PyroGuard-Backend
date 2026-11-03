@@ -154,6 +154,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "rest_framework.authtoken",
     "api",
     "corsheaders",
@@ -272,6 +273,7 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "EXCEPTION_HANDLER": "api.exceptions.api_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "api.throttles.ReadThrottle",
     ],
@@ -385,6 +387,23 @@ LOGGING = {
             "level": LOG_LEVEL,
             "propagate": False,
         },
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "PyroGuard API",
+    "DESCRIPTION": (
+        "Backend de PyroGuard: ingesta de lecturas de sensores, evaluación de riesgo de incendio "
+        "(reglas + IA), alertas, notificaciones y estado de los nodos."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["api.permissions.IsAuthenticatedOrPublicRead"],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "ENUM_NAME_OVERRIDES": {
+        "RiskLevelEnum": "api.openapi.RISK_LEVELS",
+        "AtRiskLevelEnum": "api.openapi.AT_RISK_LEVELS",
+        "ConnectionStatusEnum": "api.openapi.CONNECTION_STATES",
     },
 }
 
