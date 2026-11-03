@@ -116,7 +116,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(api): pruebas de la serie, del rango y de la mezcla de nodos [4.10]
 - [x] docs(api): documentar `/readings/series/` en el README [4.11]
 - [x] test(ingestion): medir la latencia de la ingesta con la IA lenta o caída [4.12]
-- [ ] feat(ingestion): cola FIFO de lecturas pendientes de evaluación por la IA, si [4.12] lo justifica [4.13]
+- [x] feat(ingestion): cola FIFO de lecturas pendientes de evaluación por la IA, si [4.12] lo justifica [4.13]
 - [ ] feat(ingestion): comando que drena la cola de evaluación [4.14]
 - [ ] test(ingestion): pruebas de la cola de evaluación [4.15]
 
