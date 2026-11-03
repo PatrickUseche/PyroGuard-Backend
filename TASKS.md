@@ -141,7 +141,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(logging): middleware que añade un `request_id` a cada petición y a sus logs [6.2]
 - [x] test(logging): pruebas del formato JSON y del `request_id` [6.3]
 - [x] feat(api): `GET /health/` con el estado de la base de datos [6.4] (lo usa el frontend [2.6])
-- [ ] feat(api): estado de la IA dentro de `/health/` [6.5]
+- [x] feat(api): estado de la IA dentro de `/health/` [6.5]
 - [ ] test(api): pruebas de `/health/` con la base y la IA caídas [6.6]
 - [ ] chore(deps): añadir drf-spectacular [6.7]
 - [ ] docs(api): esquema OpenAPI y `GET /api/schema/` [6.8]
