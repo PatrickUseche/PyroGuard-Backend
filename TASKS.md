@@ -105,7 +105,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 ## Fase 4 — Volumen y series
 
 - [x] feat(readings): comando `purge_readings` con retención configurable por variable de entorno [4.1]
-- [ ] test(readings): pruebas de `purge_readings` [4.2]
+- [x] test(readings): pruebas de `purge_readings` [4.2]
 - [ ] docs(readings): documentar la retención en el README [4.3]
 - [ ] feat(readings): modelo `ReadingHourly` con los agregados por hora, con migración [4.4]
 - [ ] feat(readings): comando `aggregate_readings` que rellena los agregados [4.5]
