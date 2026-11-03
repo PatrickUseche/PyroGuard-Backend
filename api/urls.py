@@ -9,6 +9,7 @@ from .views import (
     AlertListView,
     CloseAlertView,
     DashboardSummaryView,
+    DashboardTopRiskView,
     NodeReadingsView,
     NodeSearchView,
     NodeRecentReadingsView,
@@ -23,6 +24,7 @@ router.register("nodes", NodeViewSet, basename="node")
 urlpatterns = [
     path("readings/", ReceiveMeasurementView.as_view(), name="receive_reading"),
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard_summary"),
+    path("dashboard/top-risk/", DashboardTopRiskView.as_view(), name="dashboard_top_risk"),
     path(
         "auth/login/",
         ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),

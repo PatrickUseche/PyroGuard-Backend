@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from api.models import Alert, Node, RiskAssessment, SensorReading, connection_status_at
 from api.serializers import SensorReadingSerializer
+from api.structures.priority_min_heap import PriorityMinHeap
 from api.services.dashboard_cache import dashboard_cache
 from api.services.live_readings import live_readings
 from api.services.node_status_cache import node_status_cache
@@ -158,3 +159,41 @@ def _build_dashboard_summary():
         latest_readings=list(SensorReadingSerializer(latest_readings, many=True).data),
     )
     return counts
+
+
+def _risk_priority(row):
+    """Prioridad de un nodo: más riesgo, luego más probabilidad de la IA, luego el id."""
+    return (-RISK_PRIORITY[row["current_risk"]], -(row["ai_probability"] or 0.0), row["node_id"])
+
+
+def get_top_risk_nodes(k):
+    """Los ``k`` nodos de mayor riesgo actual, del más al menos peligroso.
+
+    Se arma un montículo con todos los nodos que tienen una evaluación y se
+    extraen solo ``k``: O(n + k log n), sin ordenar la lista completa. Un nodo
+    desconectado conserva su último riesgo conocido y lo indica con
+    ``current_risk_stale``.
+    """
+    latest_probability = (
+        RiskAssessment.objects.filter(reading__node_id=OuterRef("pk"))
+        .order_by("-created_at", "-pk")
+        .values("ai_probability")[:1]
+    )
+    nodes = (
+        nodes_with_current_risk()
+        .filter(current_risk__isnull=False)
+        .annotate(ai_probability=Subquery(latest_probability))
+    )
+    rows = [
+        {
+            "node_id": node.node_id,
+            "name": node.name,
+            "current_risk": node.current_risk,
+            "ai_probability": node.ai_probability,
+            "connection_status": node.connection_status,
+            "current_risk_stale": node.connection_status == "OFFLINE",
+            "last_communication": node.last_communication,
+        }
+        for node in nodes
+    ]
+    return PriorityMinHeap.smallest(rows, k, priority=_risk_priority)
