@@ -10,17 +10,23 @@ identificadores solo difieran en mayúsculas comparten una entrada (se conserva 
 primero); en la práctica los ``node_id`` no se distinguen así. El índice vive en
 el proceso: se pierde al reiniciar y cada worker tiene el suyo.
 """
+import threading
+
 from api.models import Node
 from api.structures.prefix_trie import PrefixTrie
+from api.services.locking import synchronized
 
 
 class NodeSearchIndex:
     def __init__(self):
+        self._lock = threading.RLock()
         self._trie = None
 
+    @synchronized
     def clear(self):
         self._trie = None
 
+    @synchronized
     def is_loaded(self):
         return self._trie is not None
 
@@ -32,14 +38,17 @@ class NodeSearchIndex:
             self._trie = trie
         return self._trie
 
+    @synchronized
     def search(self, prefix, limit=None):
         """Identificadores que empiezan por ``prefix``, en orden alfabético."""
         return self._loaded_trie().with_prefix(prefix, limit=limit)
 
+    @synchronized
     def node_added(self, node_id):
         if self._trie is not None:
             self._trie.insert(node_id)
 
+    @synchronized
     def node_removed(self, node_id):
         if self._trie is not None:
             self._trie.delete(node_id)
