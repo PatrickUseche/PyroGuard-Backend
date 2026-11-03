@@ -163,7 +163,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(commands): pruebas de `seed_demo` [7.10]
 - [x] feat(simulator): varios nodos a la vez con `--nodes` [7.11]
 - [x] feat(simulator): semilla reproducible con `--seed` [7.12]
-- [ ] test(simulator): pruebas del simulador (hoy no tiene ninguna) [7.13]
+- [x] test(simulator): pruebas del simulador (hoy no tiene ninguna) [7.13]
 - [ ] chore(docker): Dockerfile del backend [7.14]
 - [ ] chore(docker): `docker-compose` local con el backend y la IA [7.15]
 - [ ] docs: instrucciones para correr todo con Docker [7.16]
