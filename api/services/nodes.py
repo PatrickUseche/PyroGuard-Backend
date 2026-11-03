@@ -14,9 +14,10 @@ from django.db.models import (
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from api.models import Alert, Node, RiskAssessment, SensorReading
+from api.models import Alert, Node, RiskAssessment, SensorReading, connection_status_at
 from api.serializers import SensorReadingSerializer
 from api.services.live_readings import live_readings
+from api.services.node_status_cache import node_status_cache
 
 
 RISK_PRIORITY = {"NORMAL": 1, "WARNING": 2, "FIRE": 3}
@@ -31,7 +32,8 @@ def nodes_with_current_risk():
     return Node.objects.annotate(current_risk=Subquery(latest_assessment))
 
 
-def get_node_status(node_id):
+def _load_node_status(node_id):
+    """Parte del estado que sale de la base de datos (es lo que se cachea)."""
     node = get_object_or_404(Node, node_id=node_id)
     latest_reading = (
         SensorReading.objects.filter(node=node)
@@ -44,25 +46,41 @@ def get_node_status(node_id):
         .order_by("-created_at", "-pk")
         .first()
     )
-    connection_status = node.connection_status
     return {
         "node_id": node.node_id,
-        "connection_status": connection_status,
         "last_communication": node.last_communication,
         "latest_reading": (
-            SensorReadingSerializer(latest_reading).data
+            dict(SensorReadingSerializer(latest_reading).data)
             if latest_reading
             else None
         ),
         "current_risk": (
             latest_assessment.risk_level if latest_assessment else None
         ),
-        "current_risk_stale": connection_status == "OFFLINE",
-        "temperature_window": live_readings.temperature_window(node),
         "active_alerts_count": Alert.objects.filter(
             node=node,
             status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED],
         ).count(),
+    }
+
+
+def get_node_status(node_id):
+    stored = node_status_cache.get(node_id)
+    if stored is None:
+        stored = _load_node_status(node_id)
+        node_status_cache.put(node_id, stored)
+
+    # Lo que depende del reloj o de la memoria se calcula en cada petición.
+    connection_status = connection_status_at(stored["last_communication"])
+    return {
+        "node_id": stored["node_id"],
+        "connection_status": connection_status,
+        "last_communication": stored["last_communication"],
+        "latest_reading": stored["latest_reading"],
+        "current_risk": stored["current_risk"],
+        "current_risk_stale": connection_status == "OFFLINE",
+        "temperature_window": live_readings.temperature_window(node_id),
+        "active_alerts_count": stored["active_alerts_count"],
     }
 
 
