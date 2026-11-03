@@ -63,7 +63,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(structures): sumas de prefijos para promedios de rango en O(1) [2.20]
 - [x] test(structures): pruebas de las sumas de prefijos [2.21]
 - [x] feat(structures): filtro de Bloom para detectar duplicados [2.22]
-- [ ] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
+- [x] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
 - [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
 - [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
 - [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]

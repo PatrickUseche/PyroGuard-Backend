@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 from .structures.adjacency_graph import AdjacencyGraph
 from .structures.bidirectional_chain import BidirectionalChain, ChainLink
 from .structures.disjoint_set_union import DisjointSetUnion
+from .structures.duplicate_bloom_filter import DuplicateBloomFilter
 from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 from .structures.least_recently_used_cache import LeastRecentlyUsedCache
 from .structures.prefix_sums import PrefixSums
@@ -1357,3 +1358,91 @@ class PrefixSumsTests(SimpleTestCase):
                         sums.range_mean(start, stop),
                         sum(values[start:stop]) / (stop - start),
                     )
+
+
+class DuplicateBloomFilterTests(SimpleTestCase):
+    def test_parameters_are_validated(self):
+        for expected in (0, -5, 1.5, "10", None, True):
+            with self.subTest(expected=expected):
+                with self.assertRaises(ValueError):
+                    DuplicateBloomFilter(expected)
+        for rate in (0, 1, -0.1, 2, "0.1", None, True):
+            with self.subTest(rate=rate):
+                with self.assertRaises(ValueError):
+                    DuplicateBloomFilter(100, rate)
+
+    def test_size_follows_the_standard_formulas(self):
+        bloom = DuplicateBloomFilter(1000, 0.01)
+
+        self.assertEqual(bloom.bit_count, 9586)
+        self.assertEqual(bloom.hash_count, 7)
+
+    def test_new_filter_contains_nothing(self):
+        bloom = DuplicateBloomFilter(100)
+
+        self.assertEqual(len(bloom), 0)
+        self.assertNotIn("nodo-1", bloom)
+        self.assertEqual(bloom.estimated_false_positive_rate(), 0)
+
+    def test_added_items_are_found(self):
+        bloom = DuplicateBloomFilter(100)
+
+        bloom.add("nodo-1|2026-01-01T00:00:00Z")
+
+        self.assertIn("nodo-1|2026-01-01T00:00:00Z", bloom)
+
+    def test_add_tells_whether_the_item_looked_new(self):
+        bloom = DuplicateBloomFilter(100)
+
+        self.assertTrue(bloom.add("a"))
+        self.assertFalse(bloom.add("a"))
+        self.assertEqual(len(bloom), 1)
+
+    def test_accepts_bytes_numbers_and_tuples(self):
+        bloom = DuplicateBloomFilter(100)
+        for item in (b"raw", 42, ("nodo-1", 7), 3.5):
+            bloom.add(item)
+            self.assertIn(item, bloom)
+
+    def test_values_of_different_types_are_different_items(self):
+        bloom = DuplicateBloomFilter(1000, 0.0001)
+
+        bloom.add(1)
+
+        self.assertNotIn("1", bloom)
+
+    def test_there_are_no_false_negatives(self):
+        bloom = DuplicateBloomFilter(500, 0.01)
+        items = [f"nodo-{i}" for i in range(500)]
+        for item in items:
+            bloom.add(item)
+
+        self.assertTrue(all(item in bloom for item in items))
+
+    def test_false_positive_rate_stays_bounded(self):
+        bloom = DuplicateBloomFilter(2000, 0.01)
+        for i in range(2000):
+            bloom.add(f"presente-{i}")
+
+        false_positives = sum(f"ausente-{i}" in bloom for i in range(10000))
+
+        self.assertLess(false_positives / 10000, 0.02)
+        self.assertLess(bloom.estimated_false_positive_rate(), 0.02)
+
+    def test_estimated_rate_grows_as_the_filter_fills(self):
+        bloom = DuplicateBloomFilter(100, 0.01)
+        rates = []
+        for i in range(300):
+            bloom.add(i)
+            if i % 100 == 99:
+                rates.append(bloom.estimated_false_positive_rate())
+
+        self.assertEqual(rates, sorted(rates))
+        self.assertGreater(rates[-1], 0.01)
+
+    def test_a_tiny_filter_still_works(self):
+        bloom = DuplicateBloomFilter(1, 0.5)
+        bloom.add("x")
+
+        self.assertIn("x", bloom)
+        self.assertGreaterEqual(bloom.bit_count, 8)
