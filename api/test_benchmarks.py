@@ -92,6 +92,13 @@ class FormatTableTests(TestCase):
         self.assertEqual(len(lines), 4)
         self.assertIn("| Caso uno | Estructura A | 1,000 | 2.0 | 400.0 | 200x |", lines[2])
 
+    def test_a_structure_slower_than_the_database_shows_a_decimal_speedup(self):
+        slow = Result("x", "y", 1, 10.0, 4.0)
+
+        self.assertEqual(slow.speedup_text, "0.4x")
+        self.assertEqual(Result("x", "y", 1, 1.0, 12.0).speedup_text, "12x")
+        self.assertEqual(Result("x", "y", 1, 1.0, 1500.0).speedup_text, "1,500x")
+
     def test_speedup_is_database_over_structure(self):
         self.assertEqual(self.RESULTS[0].speedup, 200)
         self.assertEqual(Result("x", "y", 1, 0.0, 5.0).speedup, float("inf"))

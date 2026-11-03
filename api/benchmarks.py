@@ -40,6 +40,11 @@ class Result:
     def speedup(self):
         return self.database_us / self.structure_us if self.structure_us else float("inf")
 
+    @property
+    def speedup_text(self):
+        """«250x» si la estructura gana por mucho; «0.4x» si es más lenta que la base."""
+        return f"{self.speedup:,.0f}x" if self.speedup >= 10 else f"{self.speedup:.1f}x"
+
 
 @dataclass
 class Case:
@@ -339,7 +344,7 @@ def format_table(results, markdown=False):
     """Texto con una fila por caso y tamaño."""
     header = ("Caso", "Estructura", "Lecturas", "Estructura (µs)", "Base de datos (µs)", "Veces más rápida")
     rows = [
-        (r.case, r.structure, f"{r.size:,}", f"{r.structure_us:,.1f}", f"{r.database_us:,.1f}", f"{r.speedup:,.0f}x")
+        (r.case, r.structure, f"{r.size:,}", f"{r.structure_us:,.1f}", f"{r.database_us:,.1f}", r.speedup_text)
         for r in results
     ]
     if markdown:
