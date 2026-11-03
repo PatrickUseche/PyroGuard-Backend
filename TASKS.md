@@ -151,7 +151,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 ## Fase 7 — Calidad y entorno
 
-- [ ] chore(lint): configurar ruff [7.1]
+- [x] chore(lint): configurar ruff [7.1]
 - [ ] style: corregir los avisos de ruff [7.2]
 - [ ] chore(ci): paso de ruff en GitHub Actions [7.3]
 - [ ] chore(ci): medir la cobertura de pruebas con coverage.py [7.4]

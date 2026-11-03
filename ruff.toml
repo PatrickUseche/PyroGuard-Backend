@@ -1,0 +1,12 @@
+# Configuración de ruff (linter). Se ejecuta con: ruff check .
+target-version = "py313"
+line-length = 120
+extend-exclude = ["venv", "staticfiles", "api/migrations"]
+
+[lint]
+# E/W: estilo de pycodestyle, F: errores de pyflakes (imports sin usar, nombres sin definir),
+# I: orden de imports, B: errores probables de flake8-bugbear.
+select = ["E", "W", "F", "I", "B"]
+
+[lint.isort]
+known-first-party = ["api", "config"]
