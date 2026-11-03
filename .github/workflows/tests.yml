@@ -51,5 +51,6 @@ jobs:
       - name: Verificar migraciones pendientes
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Ejecutar pruebas
-        run: python manage.py test
+      - name: Ejecutar pruebas con cobertura
+        run: coverage run manage.py test
+

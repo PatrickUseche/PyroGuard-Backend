@@ -1,0 +1,15 @@
+[run]
+source = api, config
+branch = True
+omit =
+    */migrations/*
+    */tests.py
+    api/test_*.py
+
+[report]
+show_missing = True
+# El CI falla si la cobertura baja de este mínimo.
+fail_under = 90
+skip_covered = True
+exclude_also =
+    if __name__ == .__main__.:

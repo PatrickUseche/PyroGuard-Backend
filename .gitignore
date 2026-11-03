@@ -22,3 +22,8 @@ staticfiles/
 # Configuraciones de IDEs
 .vscode/
 .idea/
+
+# Cobertura de pruebas
+.coverage
+htmlcov/
+.ruff_cache/
