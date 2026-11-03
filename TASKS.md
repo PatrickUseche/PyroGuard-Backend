@@ -77,7 +77,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 ## Fase 3 — Las estructuras en el backend
 
 - [x] feat(readings): buffer circular por nodo con las últimas N lecturas [3.1]
-- [ ] feat(api): `GET /nodes/{id}/recent/` que sirve ese buffer sin consultar la base [3.2]
+- [x] feat(api): `GET /nodes/{id}/recent/` que sirve ese buffer sin consultar la base [3.2]
 - [ ] test(api): pruebas del buffer de lecturas recientes y de `/recent/` [3.3]
 - [ ] feat(readings): ventana deslizante de temperatura máxima y mínima por nodo [3.4]
 - [ ] feat(nodes): exponer el máximo y el mínimo de la ventana en `/nodes/{id}/status/` [3.5]
