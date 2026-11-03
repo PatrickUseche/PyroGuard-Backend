@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Alert, Node, NodeLink, ReadingHourly, RiskAssessment, SensorReading
+from .models import Alert, Node, NodeLink, NotificationOutbox, ReadingHourly, RiskAssessment, SensorReading
 
 
 @admin.register(Node)
@@ -72,3 +72,10 @@ class ReadingHourlyAdmin(admin.ModelAdmin):
     list_display = ("node", "hour", "reading_count", "temperature_avg", "temperature_max")
     list_filter = ("hour",)
     search_fields = ("node__node_id",)
+
+
+@admin.register(NotificationOutbox)
+class NotificationOutboxAdmin(admin.ModelAdmin):
+    list_display = ("subject", "kind", "priority", "status", "attempts", "created_at", "sent_at")
+    list_filter = ("status", "kind")
+    search_fields = ("subject", "node__node_id")
