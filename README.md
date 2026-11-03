@@ -93,6 +93,7 @@ se registra una advertencia.
 | `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta. Si ya existe una lectura del mismo nodo y `timestamp` responde `200` con `status: "duplicate"` y no guarda nada (ver «Lecturas duplicadas») |
 | `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
+| `GET /nodes/search/?prefix=` | Identificadores de nodo que empiezan por `prefix` (sin distinguir mayúsculas, orden alfabético); `limit` de 1 a 100, 20 por defecto. Responde `{prefix, results}` desde un índice en memoria |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
 | `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |

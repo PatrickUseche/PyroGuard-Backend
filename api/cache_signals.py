@@ -4,6 +4,7 @@ from django.dispatch import receiver
 
 from .models import Alert, Node, RiskAssessment, SensorReading
 from .services.dashboard_cache import dashboard_cache
+from .services.node_search import node_search_index
 from .services.node_status_cache import node_status_cache
 
 
@@ -11,6 +12,17 @@ from .services.node_status_cache import node_status_cache
 def invalidate_on_node_change(sender, instance, **kwargs):
     node_status_cache.invalidate(instance.node_id)
     dashboard_cache.invalidate()
+
+
+@receiver(post_save, sender=Node)
+def index_new_node(sender, instance, created, **kwargs):
+    if created:
+        node_search_index.node_added(instance.node_id)
+
+
+@receiver(post_delete, sender=Node)
+def unindex_deleted_node(sender, instance, **kwargs):
+    node_search_index.node_removed(instance.node_id)
 
 
 @receiver(post_save, sender=SensorReading)
