@@ -133,7 +133,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(alerts): avisar cuando un nodo OFFLINE tiene una alerta activa [5.9]
 - [x] test(alerts): pruebas de los canales con envío simulado [5.10]
 - [x] test(alerts): pruebas de la prioridad y de la ventana de avisos [5.11]
-- [ ] docs(alerts): documentar la configuración de las notificaciones [5.12]
+- [x] docs(alerts): documentar la configuración de las notificaciones [5.12]
 
 ## Fase 6 — Observabilidad y documentación
 
