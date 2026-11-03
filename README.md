@@ -57,6 +57,12 @@ El panel de administración queda en `http://localhost:8000/admin/`.
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
 | `RECENT_READINGS_PER_NODE` | Lecturas recientes que cada nodo guarda en memoria (entero ≥ 1) | `50` |
 | `NODE_STATUS_CACHE_SIZE` | Nodos cuyo `/status/` se guarda en la caché LRU en memoria (entero ≥ 0; 0 la desactiva) | `256` |
+| `NOTIFICATION_CHANNELS` | Canales de aviso activos, separados por comas: `console`, `email`, `telegram` | `console` |
+| `NOTIFICATION_COOLDOWN_SECONDS` | Segundos sin repetir el mismo aviso del mismo nodo (entero ≥ 0; 0 lo desactiva) | `300` |
+| `NOTIFICATION_MAX_ATTEMPTS` | Intentos de envío de un aviso antes de darlo por fallido (entero ≥ 1) | `3` |
+| `NOTIFY_EMAIL_TO` | Destinatarios del correo, separados por comas | Vacío |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` | Servidor SMTP y remitente del canal de correo | Vacíos (`587`, `True`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Token del bot (BotFather) y chat de destino del canal de Telegram | Vacíos |
 | `READINGS_RETENTION_DAYS` | Días que se conservan las lecturas antes de que `purge_readings` las borre (entero ≥ 1) | `90` |
 | `NEIGHBOR_WARNING_HOPS` | Saltos hacia los vecinos a los que se avisa cuando un nodo entra en `FIRE` (entero ≥ 0; 0 lo desactiva) | `2` |
 | `DEDUPLICATE_READINGS` | Descarta las lecturas repetidas (mismo nodo y `timestamp`) | `True` |
@@ -193,6 +199,39 @@ python manage.py purge_readings --batch-size 500
 
 Borra por lotes (`--batch-size`, 1000 por defecto) para no bloquear la base. Conviene
 programarlo a diario (por ejemplo, un Cron Job de Render); el comando no se ejecuta solo.
+
+## Notificaciones
+
+Cuando algo grave ocurre se **encola un aviso** en la base (`NotificationOutbox`) y otro proceso lo
+envía; así un canal lento o caído no retrasa la ingesta y se puede reintentar.
+
+| Aviso | Cuándo se encola | Prioridad |
+| --- | --- | --- |
+| `FIRE_ALERT` | Se crea una alerta `FIRE` nueva (actualizar una existente no avisa otra vez) | 1 (más urgente) |
+| `OFFLINE_ALERT` | `check_offline_nodes` encuentra un nodo desconectado con una alerta activa | 2 |
+
+Canales (`NOTIFICATION_CHANNELS`, se pueden combinar): `console` (log `api.notifications`),
+`email` (necesita `NOTIFY_EMAIL_TO` y el SMTP `EMAIL_*`) y `telegram` (necesita `TELEGRAM_BOT_TOKEN` y
+`TELEGRAM_CHAT_ID`). Un canal activado sin configuración se omite con un aviso en el log. Para
+Telegram, crea el bot con @BotFather y obtén el `chat_id` escribiéndole al bot y consultando
+`https://api.telegram.org/bot<TOKEN>/getUpdates`. No publiques el token.
+
+Comandos (hay que programarlos; no corren solos, por ejemplo con Cron Jobs de Render):
+
+```bash
+python manage.py send_notifications --limit 100   # envía los pendientes, el más urgente primero (cada minuto)
+python manage.py check_offline_nodes              # lista los nodos desconectados y avisa si tienen alerta activa (cada 5 min)
+python manage.py check_offline_nodes --no-notify  # solo lista
+```
+
+- **Orden:** se envían con un montículo mínimo por prioridad y, a igual prioridad, por antigüedad.
+- **Reintentos:** un aviso queda `SENT` cuando lo recibieron todos los canales activos. Si uno falla se
+  reintenta en la siguiente ejecución **solo por los canales que faltan**, y tras
+  `NOTIFICATION_MAX_ATTEMPTS` intentos pasa a `FAILED` (el motivo queda en `last_error`, visible en el admin).
+- **Ventana de silencio:** no se repite el mismo tipo de aviso del mismo nodo durante
+  `NOTIFICATION_COOLDOWN_SECONDS`, aunque el anterior ya se haya enviado; evita avisos en cascada
+  cuando un nodo oscila entre estados.
+- **Seguridad:** los errores de los canales no incluyen el token ni los detalles del servidor.
 
 ## Evaluación diferida de la IA
 
