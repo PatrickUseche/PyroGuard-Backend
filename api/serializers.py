@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from .models import Alert, Node, RiskAssessment, SensorReading
 
@@ -120,12 +121,27 @@ class SensorReadingSerializer(serializers.ModelSerializer):
         data["node_id"] = instance.node.node_id
         return data
 
+    @extend_schema_field(serializers.ChoiceField(["NORMAL", "WARNING", "FIRE"], allow_null=True))
     def get_risk_level(self, instance):
         try:
             return instance.assessment.risk_level
         except RiskAssessment.DoesNotExist:
             return None
 
+    @extend_schema_field(
+        {
+            "type": "object",
+            "nullable": True,
+            "description": "Resultado de PyroGuard-IA, solo para trazabilidad (`risk_level` es la decisión final).",
+            "properties": {
+                "status": {"type": "string", "enum": ["OK", "DISABLED", "UNAVAILABLE", "REJECTED", "INVALID_RESPONSE", "PENDING"]},
+                "risk_level": {"type": "string", "nullable": True},
+                "probability": {"type": "number", "nullable": True},
+                "probabilities": {"type": "object"},
+                "model_version": {"type": "string", "nullable": True},
+            },
+        }
+    )
     def get_ai(self, instance):
         try:
             assessment = instance.assessment
@@ -204,5 +220,6 @@ class NodeSerializer(serializers.ModelSerializer):
             )
         return value
 
+    @extend_schema_field(serializers.ChoiceField(["NORMAL", "WARNING", "FIRE"], allow_null=True))
     def get_current_risk(self, instance):
         return getattr(instance, "current_risk", None)

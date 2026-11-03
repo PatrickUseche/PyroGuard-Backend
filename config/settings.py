@@ -400,6 +400,11 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "SERVE_PERMISSIONS": ["api.permissions.IsAuthenticatedOrPublicRead"],
     "COMPONENT_SPLIT_REQUEST": True,
+    "ENUM_NAME_OVERRIDES": {
+        "RiskLevelEnum": "api.openapi.RISK_LEVELS",
+        "AtRiskLevelEnum": "api.openapi.AT_RISK_LEVELS",
+        "ConnectionStatusEnum": "api.openapi.CONNECTION_STATES",
+    },
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
