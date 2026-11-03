@@ -526,6 +526,23 @@ Transiciones válidas: `ACTIVE -> ACKNOWLEDGED -> CLOSED` y `ACTIVE -> CLOSED`.
 Las transiciones inválidas devuelven HTTP 409; reconocimiento y cierre registran
 sus fechas y requieren autenticación.
 
+## Datos de demostración
+
+`python manage.py seed_demo` crea nodos `SIM-001`, `SIM-002`... enlazados en anillo, con horas de lecturas
+de ejemplo para ver el dashboard con vida sin esperar a un sensor ni a la IA:
+
+- `SIM-001` termina en `FIRE` (con su alerta) y `SIM-002`, su vecino, en `WARNING`: forman una **zona de riesgo**.
+- El último nodo deja de comunicarse hace 2 horas (`OFFLINE`); el resto está normal.
+
+```powershell
+python manage.py seed_demo                          # 6 nodos y 6 horas de historial
+python manage.py seed_demo --nodes 10 --hours 24    # nodos: 3 a 50; horas: 3 a 72
+python manage.py seed_demo --seed 42                # mismos valores cada vez
+python manage.py seed_demo --reset                  # borra antes los nodos SIM-* y los vuelve a crear
+```
+
+Sin `--reset` se niega a ejecutarse si ya existen nodos `SIM-*`. Solo toca nodos con ese prefijo.
+
 ## Simulador
 
 El simulador usa por defecto `API_URL` o `http://localhost:8000/api/readings/`,
