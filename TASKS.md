@@ -171,14 +171,14 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(config): pruebas de los ajustes de producción [7.18]
 - [x] feat(commands): `benchmark_structures` que mide cada estructura frente a la consulta equivalente en base de datos [7.19]
 - [x] docs: informe de las mediciones de [7.19] y de la complejidad observada [7.20]
-- [ ] chore(git): unificar los remotos del repo y limpiar las ramas ya fusionadas [7.21]
+- [ ] chore(git): unificar los remotos del repo y limpiar las ramas ya fusionadas [7.21] (hecho: remoto único `origin` y ramas locales limpias; falta borrar en GitHub las ramas remotas ya fusionadas, que requiere confirmación explícita)
 
 ## Fase 8 — Despliegue
 
-- [ ] docs(deploy): documentar `AI_SERVICE_URL`, `AI_API_KEY` y los timeouts en Render [8.1] (necesita la IA desplegada, ver IA [3.4])
+- [x] docs(deploy): documentar `AI_SERVICE_URL`, `AI_API_KEY` y los timeouts en Render [8.1] (necesita la IA desplegada, ver IA [3.4]; documentado con la URL como marcador: falta poner la URL real cuando la IA esté desplegada)
 - [x] chore(deploy): ejecutar las migraciones en un paso de release explícito [8.2] (en el build command de Render y en el `Procfile`; Render obedece el panel, no el `Procfile`)
 - [x] docs(deploy): definir `NUM_PROXIES` y el límite de peticiones en Render [8.3] (se usa `CLIENT_IP_HEADER=CF-Connecting-IP`)
-- [ ] docs(deploy): lista de comprobación previa al despliegue [8.4]
+- [x] docs(deploy): lista de comprobación previa al despliegue [8.4]
 - [x] test(deploy): el `Procfile` migra y recopila estáticos antes de arrancar gunicorn [8.7]
 - [x] fix(config): tratar una variable booleana vacía como no definida; el build de Render fallaba con `DEBUG` vacía [8.5]
 - [x] test(config): pruebas de `_env_bool` (vacía, valores válidos e inválidos) [8.6]
