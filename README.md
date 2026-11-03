@@ -194,6 +194,26 @@ python manage.py purge_readings --batch-size 500
 Borra por lotes (`--batch-size`, 1000 por defecto) para no bloquear la base. Conviene
 programarlo a diario (por ejemplo, un Cron Job de Render); el comando no se ejecuta solo.
 
+## Evaluación diferida de la IA
+
+Por defecto la ingesta pide la predicción a PyroGuard-IA antes de responder, así que si la IA
+va lenta o está caída el sensor espera hasta `AI_CONNECT_TIMEOUT + AI_READ_TIMEOUT` (13 s con los
+valores por defecto) por cada lectura; `api/test_ingestion_latency.py` lo mide.
+
+Con `AI_ASYNC_EVALUATION=True` (y `AI_SERVICE_URL` definida) la ingesta responde enseguida: guarda
+la lectura con el riesgo de las reglas y deja su evaluación en estado `PENDING` (`ai.status` en la
+respuesta). Un proceso aparte las atiende por orden de llegada:
+
+```bash
+python manage.py drain_ai_queue --limit 500
+```
+
+Cada evaluación pendiente se completa con la IA, se recalcula el riesgo (que puede subir a `WARNING` o
+`FIRE` y crear la alerta o avisar a los vecinos). Si la IA no responde, el comando se detiene en la
+primera (no espera un timeout por cada pendiente) y deja el resto para la próxima ejecución. Hay que
+programarlo con una frecuencia corta (por ejemplo, cada minuto en un Cron Job de Render). Mientras una
+lectura está pendiente, `/recent/` conserva el riesgo que tenía al ingresar hasta que el worker recargue.
+
 ## Agregados por hora
 
 `python manage.py aggregate_readings` guarda en `ReadingHourly` el resumen por nodo y hora
