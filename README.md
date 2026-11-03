@@ -101,6 +101,7 @@ se registra una advertencia.
 | `DELETE /nodes/{node_id}/links/{neighbor_id}/` | Quitar el vínculo entre dos nodos (autenticado) |
 | `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
 | `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
+| `GET /readings/series/` | Serie histórica de un campo para uno o varios nodos (ver «Series históricas») |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
 | `GET /dashboard/top-risk/?k=` | Los `k` nodos de mayor riesgo actual (1 a 50, 5 por defecto): primero `FIRE`, luego `WARNING` y `NORMAL`, y a igual nivel la mayor probabilidad de la IA. Cada nodo trae `current_risk`, `ai_probability`, `connection_status` y `current_risk_stale` |
 | `GET /dashboard/zones/` | Zonas de riesgo: grupos de nodos vecinos conectados que están en `WARNING` o `FIRE` a la vez (solo nodos online), de la más grave a la menos grave. Cada zona trae `zone_id`, `risk_level`, `size` y `nodes` |
@@ -136,6 +137,45 @@ curl http://localhost:8000/api/nodes/SIM-001/status/
 curl "http://localhost:8000/api/readings/?node_id=SIM-001&range=24h&limit=50&order=desc"
 curl http://localhost:8000/api/dashboard/summary/
 ```
+
+## Series históricas
+
+`GET /readings/series/` alimenta el gráfico histórico. Parámetros:
+
+| Parámetro | Descripción |
+| --- | --- |
+| `node_id` | Obligatorio; hasta 10 nodos, repetido o separado por comas |
+| `field` | `temperature` (por defecto), `humidity`, `smoke` o `gas` |
+| `from`, `to` | ISO 8601; por defecto las últimas 24 h; el intervalo no puede superar 31 días |
+| `step` | Segundos por tramo (1 a 86400). Devuelve el promedio de cada tramo en lugar de los puntos |
+| `merge` | `true` añade `merged`: todos los nodos en una sola línea de tiempo |
+
+```bash
+curl "http://localhost:8000/api/readings/series/?node_id=SIM-001,SIM-002&field=temperature&step=300&merge=true"
+```
+
+Respuesta (resumida):
+
+```json
+{
+  "field": "temperature", "from": "...", "to": "...", "step": 300,
+  "series": [
+    {"node_id": "SIM-001", "count": 12, "average": 24.1,
+     "buckets": [{"start": "2026-10-30T12:00:00Z", "count": 4, "average": 23.8}]}
+  ],
+  "merged": [{"node_id": "SIM-001", "start": "2026-10-30T12:00:00Z", "count": 4, "average": 23.8}]
+}
+```
+
+Sin `step`, cada serie trae `points` (`{timestamp, value}`) y `merged` trae `{node_id, timestamp, value}`.
+Los tramos se alinean al reloj (UTC) y solo aparecen los que tienen datos. Las lecturas sin el
+campo pedido (por ejemplo, sin `gas`) se omiten. Sin `step` se devuelven como máximo 5000 puntos por
+nodo (`400` si hay más: acorta el intervalo o usa `step`); con `step` el tope es de 200 000 lecturas.
+
+Cómo se calcula: la base entrega las lecturas ordenadas; **la búsqueda binaria** localiza en O(log n)
+dónde empieza y termina cada intervalo o tramo, **las sumas de prefijos** dan su promedio en O(1) (resumir
+en `b` tramos cuesta O(n + b log n) y no O(n · b)) y **la mezcla de k listas ordenadas con un montículo**
+junta los nodos en O(N log k) sin reordenar todo.
 
 ## Retención de lecturas
 
