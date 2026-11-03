@@ -142,6 +142,7 @@ class RiskAssessment(models.Model):
         UNAVAILABLE = "UNAVAILABLE", "Unavailable"
         REJECTED = "REJECTED", "Rejected"
         INVALID_RESPONSE = "INVALID_RESPONSE", "Invalid response"
+        PENDING = "PENDING", "Pending"
 
     reading = models.OneToOneField(
         SensorReading,

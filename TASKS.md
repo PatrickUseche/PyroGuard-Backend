@@ -115,10 +115,10 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(api): combinar las series de varios nodos con una mezcla de K listas ordenadas (montículo) [4.9]
 - [x] test(api): pruebas de la serie, del rango y de la mezcla de nodos [4.10]
 - [x] docs(api): documentar `/readings/series/` en el README [4.11]
-- [ ] test(ingestion): medir la latencia de la ingesta con la IA lenta o caída [4.12]
-- [ ] feat(ingestion): cola FIFO de lecturas pendientes de evaluación por la IA, si [4.12] lo justifica [4.13]
-- [ ] feat(ingestion): comando que drena la cola de evaluación [4.14]
-- [ ] test(ingestion): pruebas de la cola de evaluación [4.15]
+- [x] test(ingestion): medir la latencia de la ingesta con la IA lenta o caída [4.12]
+- [x] feat(ingestion): cola FIFO de lecturas pendientes de evaluación por la IA, si [4.12] lo justifica [4.13]
+- [x] feat(ingestion): comando que drena la cola de evaluación [4.14]
+- [x] test(ingestion): pruebas de la cola de evaluación [4.15]
 
 ## Fase 5 — Notificaciones
 

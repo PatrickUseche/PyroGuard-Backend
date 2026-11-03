@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -56,7 +57,11 @@ def ingest_reading(serializer):
 
     # La IA se consulta con la lectura ya confirmada y fuera de cualquier
     # transacción, para no mantener bloqueos mientras dura el timeout.
-    prediction = _predict(reading)
+    if settings.AI_ASYNC_EVALUATION and settings.AI_SERVICE_URL:
+        # No se espera a la IA: la evaluación queda PENDING y la atiende `drain_ai_queue`.
+        prediction = AIPrediction(status=RiskAssessment.AIStatus.PENDING)
+    else:
+        prediction = _predict(reading)
 
     try:
         with transaction.atomic():

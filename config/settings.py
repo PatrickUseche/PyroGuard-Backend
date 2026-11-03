@@ -308,6 +308,9 @@ AI_SERVICE_URL = _env_service_url("AI_SERVICE_URL")
 AI_CONNECT_TIMEOUT = _env_positive_float("AI_CONNECT_TIMEOUT", 3.0)
 AI_READ_TIMEOUT = _env_positive_float("AI_READ_TIMEOUT", 10.0)
 AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
+# Con True la ingesta no espera a la IA: guarda la lectura con las reglas y deja la
+# evaluación de la IA pendiente para `manage.py drain_ai_queue`.
+AI_ASYNC_EVALUATION = _env_bool("AI_ASYNC_EVALUATION", False)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 LOGGING = {
