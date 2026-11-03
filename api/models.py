@@ -107,6 +107,29 @@ class SensorReading(models.Model):
         return f"{self.node.node_id} - {self.timestamp}"
 
 
+class ReadingHourly(models.Model):
+    """Resumen de las lecturas de un nodo durante una hora (se conserva tras la purga)."""
+
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="hourly_readings")
+    hour = models.DateTimeField(help_text="Inicio de la hora, en UTC.")
+    reading_count = models.PositiveIntegerField()
+    temperature_min = models.FloatField()
+    temperature_avg = models.FloatField()
+    temperature_max = models.FloatField()
+    humidity_avg = models.FloatField()
+    smoke_max = models.FloatField()
+    flame_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["node", "hour"]
+        constraints = [
+            models.UniqueConstraint(fields=["node", "hour"], name="readinghourly_unique_node_hour"),
+        ]
+
+    def __str__(self):
+        return f"{self.node.node_id} - {self.hour:%Y-%m-%d %H:00}"
+
+
 class RiskAssessment(models.Model):
     class RiskLevel(models.TextChoices):
         NORMAL = "NORMAL", "Normal"
