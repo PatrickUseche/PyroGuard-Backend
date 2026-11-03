@@ -670,6 +670,25 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
 
 ## Despliegue en Render
 
+### Desde cero con el Blueprint (`render.yaml`)
+
+1. **IA primero** (opcional): despliega `PyroGuard-IA` (trae su propio `render.yaml`) y anota su URL.
+2. En Render: **New → Blueprint**, elige este repositorio y la rama `main`. Render crea el servicio
+   `pyroguard-backend` y la base `pyroguard-db`, y genera `SECRET_KEY` e `INGEST_API_KEY` solos.
+3. Render te pedirá los valores de las variables marcadas `sync: false`:
+   - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyroguard.vercel.app`).
+   - `AI_SERVICE_URL` y `AI_API_KEY`: los de la IA; déjalas vacías si aún no la tienes.
+   - `EXTRA_ALLOWED_HOSTS`: solo si usas un dominio propio.
+4. Cuando termine el despliegue, abre `https://pyroguard-backend.onrender.com/api/health/`: debe responder
+   `status: ok` (o `degraded` si la IA aún no está).
+5. Copia `INGEST_API_KEY` del panel (pestaña *Environment*) y dásela a los sensores o al simulador.
+6. Frontend en Vercel: apunta a la URL del backend y añade su dominio a `EXTRA_CORS_ORIGINS`.
+
+Las tareas programadas (avisos, nodos desconectados, mantenimiento) están comentadas al final de `render.yaml`
+porque los Cron Jobs de Render son de pago. Sin ellas la API funciona, pero no salen avisos por correo/Telegram.
+
+### Configuración manual (sin Blueprint)
+
 1. Crear un servicio web desde el repositorio del backend.
 2. Build command: `pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput`.
 3. Start command: `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`. El
