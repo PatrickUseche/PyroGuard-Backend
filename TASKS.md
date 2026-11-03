@@ -171,7 +171,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(config): pruebas de los ajustes de producción [7.18]
 - [x] feat(commands): `benchmark_structures` que mide cada estructura frente a la consulta equivalente en base de datos [7.19]
 - [x] docs: informe de las mediciones de [7.19] y de la complejidad observada [7.20]
-- [ ] chore(git): unificar los remotos del repo y limpiar las ramas ya fusionadas [7.21] (hecho: remoto único `origin` y ramas locales limpias; falta borrar en GitHub las ramas remotas ya fusionadas, que requiere confirmación explícita)
+- [x] chore(git): unificar los remotos del repo y limpiar las ramas ya fusionadas [7.21]
 
 ## Fase 8 — Despliegue
 
