@@ -9,12 +9,54 @@ con reglas.
 
 ## Arquitectura
 
-- `api/models.py`: nodos, lecturas, evaluaciones de riesgo y alertas.
-- `api/services/`: reglas de riesgo, ingesta, consultas, nodos y alertas.
-- `api/serializers.py`, `api/views.py` y `api/urls.py`: contratos y endpoints.
-- `config/settings.py`: configuración por variables de entorno, DRF, CORS,
-	WhiteNoise y base de datos.
+PyroGuard son tres repositorios: **este backend** (Django), **PyroGuard-IA** (servicio de inferencia) y
+**PyroGuard-Frontend** (dashboard). El flujo de una lectura es:
+
+```mermaid
+flowchart LR
+    S[Sensor IoT] -->|POST /api/readings/<br/>X-API-Key| B[Backend Django]
+    B -->|valida y guarda| DB[(PostgreSQL)]
+    B -->|POST /predict| IA[PyroGuard-IA]
+    IA -->|probabilidad y nivel| B
+    B -->|reglas + IA| R{Riesgo}
+    R -->|FIRE o WARNING| A[Alerta]
+    A -->|encola| O[(NotificationOutbox)]
+    O -->|send_notifications| N[Consola / correo / Telegram]
+    F[Frontend] -->|GET /api/...| B
+```
+
+1. **Sensor → backend.** El nodo envía `POST /api/readings/` con `X-API-Key`. Se valida, se descartan las
+   lecturas duplicadas (filtro de Bloom + base) y se guarda; se actualiza la última comunicación del nodo.
+2. **Backend → IA.** Se consulta a PyroGuard-IA fuera de cualquier transacción (con `AI_ASYNC_EVALUATION=True`
+   se deja pendiente y la atiende `drain_ai_queue`). Si la IA no responde, la lectura se guarda igual y se
+   evalúa solo con reglas.
+3. **Riesgo.** `services/risk_rules.py` combina las reglas con la probabilidad de la IA, que solo puede
+   elevar el nivel (`NORMAL` < `WARNING` < `FIRE`).
+4. **Alertas.** `services/alerts.py` crea o actualiza una alerta por nodo y nivel. Una alerta `FIRE` nueva
+   encola un aviso y se avisa a los nodos vecinos hasta `NEIGHBOR_WARNING_HOPS` saltos.
+5. **Avisos.** `send_notifications` envía la cola por prioridad a los canales activos.
+6. **Consulta.** El frontend lee nodos, estado, series, alertas y resumen; muchas respuestas salen de
+   estructuras en memoria (ver «Estado en memoria»).
+
+Módulos principales:
+
+- `api/models.py`: nodos, lecturas, evaluaciones, alertas, vecinos (`NodeLink`), agregados por hora
+  (`ReadingHourly`) y cola de avisos (`NotificationOutbox`).
+- `api/services/`: reglas de riesgo, ingesta, IA, alertas, estado de nodos, series, zonas y cachés en memoria.
+- `api/structures/`: estructuras de datos propias (ver `docs/ESTRUCTURAS_DE_DATOS.md`).
+- `api/notifications/`: canales de aviso y cola de prioridad.
+- `api/management/commands/`: `purge_readings`, `aggregate_readings`, `drain_ai_queue`,
+  `send_notifications` y `check_offline_nodes`.
+- `api/serializers.py`, `api/views.py`, `api/urls.py` y `api/openapi.py`: contratos, endpoints y esquema OpenAPI.
+- `api/middleware.py` y `api/logging_utils.py`: `request_id` y logs en JSON.
+- `config/settings.py`: configuración por variables de entorno, DRF, CORS, WhiteNoise y base de datos.
 - `simulador_iot.py`: productor de lecturas con escenarios controlados.
+
+**Tareas programadas** (no corren solas; por ejemplo, Cron Jobs de Render): `send_notifications` (cada minuto),
+`drain_ai_queue` (cada minuto, solo con evaluación diferida), `check_offline_nodes` (cada 5 minutos),
+`aggregate_readings` (cada hora) y `purge_readings` (a diario, después de agregar).
+
+La documentación interactiva de la API está en `/api/docs/` y el esquema OpenAPI en `/api/schema/`.
 
 ## Requisitos
 
@@ -99,24 +141,30 @@ se registra una advertencia.
 
 | Método y ruta | Descripción |
 | --- | --- |
+| `GET /health/` | Estado de la base de datos y de la IA: `ok`, `degraded` (IA caída, 200) o `down` (base caída, 503). Público y sin límite de peticiones |
+| `POST /readings/` | Ingresa una lectura (requiere `X-API-Key`), persiste riesgo y puede crear/actualizar alerta. Si ya existe una lectura del mismo nodo y `timestamp` responde `200` con `status: "duplicate"` y no guarda nada (ver «Lecturas duplicadas») |
 | `GET /readings/` | Lista plana; filtros `node_id`, `from`, `to`, `range`, `limit`, `offset`, `order` |
-| `POST /readings/` | Ingresa una lectura, persiste riesgo y puede crear/actualizar alerta. Si ya existe una lectura del mismo nodo y `timestamp` responde `200` con `status: "duplicate"` y no guarda nada (ver «Lecturas duplicadas») |
-| `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo autenticado |
+| `GET /readings/series/` | Serie histórica de un campo para uno o varios nodos, con promedios por tramos (`step`) y mezcla (`merge`) (ver «Series históricas») |
+| `GET /nodes/`, `POST /nodes/` | Listar nodos / crear nodo (autenticado) |
 | `GET`, `PUT`, `PATCH`, `DELETE /nodes/{node_id}/` | CRUD de un nodo; `node_id` no cambia |
-| `GET /nodes/search/?prefix=` | Identificadores de nodo que empiezan por `prefix` (sin distinguir mayúsculas, orden alfabético); `limit` de 1 a 100, 20 por defecto. Responde `{prefix, results}` desde un índice en memoria |
-| `GET /nodes/{node_id}/links/`, `POST /nodes/{node_id}/links/` | Listar los vecinos directos del nodo / registrar uno con `{"neighbor": "node_id"}` (autenticado; `409` si ya lo eran) |
-| `GET /nodes/{node_id}/neighbors/?hops=` | Nodos alcanzables en `hops` saltos o menos (1 a 10, 1 por defecto), con los saltos de cada uno, calculados con un recorrido en anchura sobre el grafo de vecinos |
-| `DELETE /nodes/{node_id}/links/{neighbor_id}/` | Quitar el vínculo entre dos nodos (autenticado) |
-| `GET /nodes/{node_id}/status/` | Estado, última lectura, riesgo y alertas activas |
-| `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (de la más nueva a la más antigua) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE`. La primera consulta tras un reinicio las carga de la base; el orden es el de llegada |
-| `GET /readings/series/` | Serie histórica de un campo para uno o varios nodos (ver «Series históricas») |
+| `GET /nodes/search/?prefix=` | Identificadores que empiezan por `prefix`, sin distinguir mayúsculas; `limit` de 1 a 100 (20 por defecto) |
+| `GET /nodes/{node_id}/status/` | Conexión, última lectura, riesgo actual, ventana de temperatura (`temperature_window`) y alertas activas |
 | `GET /nodes/{node_id}/readings/` | Lecturas del nodo con los mismos filtros de `/readings/` |
-| `GET /dashboard/top-risk/?k=` | Los `k` nodos de mayor riesgo actual (1 a 50, 5 por defecto): primero `FIRE`, luego `WARNING` y `NORMAL`, y a igual nivel la mayor probabilidad de la IA. Cada nodo trae `current_risk`, `ai_probability`, `connection_status` y `current_risk_stale` |
-| `GET /dashboard/zones/` | Zonas de riesgo: grupos de nodos vecinos conectados que están en `WARNING` o `FIRE` a la vez (solo nodos online), de la más grave a la menos grave. Cada zona trae `zone_id`, `risk_level`, `size` y `nodes` |
-| `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo |
-| `GET /alerts/`, `GET /alerts/active/`, `GET /alerts/{id}/` | Consultar alertas e historial; `/alerts/` acepta `limit` (por defecto 100) y `offset`. `/alerts/active/` las ordena por urgencia: `FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero |
-| `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar estado con autenticación |
-| `POST /auth/login/` | Obtener token de DRF |
+| `GET /nodes/{node_id}/recent/` | Últimas lecturas del nodo (la más nueva primero) servidas desde memoria; `limit` hasta `RECENT_READINGS_PER_NODE` |
+| `GET /nodes/{node_id}/links/`, `POST /nodes/{node_id}/links/` | Listar los vecinos directos / registrar uno con `{"neighbor": "node_id"}` (autenticado; `409` si ya lo eran) |
+| `DELETE /nodes/{node_id}/links/{neighbor_id}/` | Quitar el vínculo entre dos nodos (autenticado) |
+| `GET /nodes/{node_id}/neighbors/?hops=` | Nodos alcanzables en `hops` saltos o menos (1 a 10, 1 por defecto) con la distancia de cada uno |
+| `GET /dashboard/summary/` | Conteos, riesgo global y última lectura por nodo (se reutiliza `DASHBOARD_CACHE_SECONDS`) |
+| `GET /dashboard/top-risk/?k=` | Los `k` nodos de mayor riesgo actual (1 a 50, 5 por defecto) |
+| `GET /dashboard/zones/` | Zonas de riesgo: grupos de nodos vecinos conectados en `WARNING` o `FIRE` a la vez (solo nodos online) |
+| `GET /alerts/` | Historial de alertas; filtros `status`, `level`, `node_id`, `from`, `to`, `limit` (100 por defecto) y `offset` |
+| `GET /alerts/active/` | Alertas activas por urgencia: `FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero |
+| `GET /alerts/{id}/` | Detalle de una alerta |
+| `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar el estado de una alerta (autenticado; `409` si la transición no es válida) |
+| `POST /auth/login/` | Obtener token de DRF (con límite de intentos) |
+| `GET /schema/`, `GET /docs/` | Esquema OpenAPI (YAML o `?format=json`) e interfaz Swagger |
+
+Todas las respuestas llevan `X-Request-ID`; las listas paginadas devuelven `X-Total-Count`.
 
 Autenticación de ingesta:
 
