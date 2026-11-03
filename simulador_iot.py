@@ -16,7 +16,18 @@ def parse_args():
         default=os.getenv("API_URL", "http://localhost:8000/api/readings/"),
         help="URL de ingesta de lecturas",
     )
-    parser.add_argument("--node", default="NODE-001", help="Identificador del nodo")
+    parser.add_argument("--node", default="NODE-001", help="Identificador del nodo (con --nodes 1)")
+    parser.add_argument(
+        "--nodes",
+        type=int,
+        default=1,
+        help="Cantidad de nodos simulados a la vez; con más de uno se llaman PREFIJO001, PREFIJO002...",
+    )
+    parser.add_argument(
+        "--prefix",
+        default="SIM-",
+        help="Prefijo de los nodos cuando --nodes es mayor que uno (por defecto SIM-)",
+    )
     parser.add_argument(
         "--interval",
         type=float,
@@ -37,7 +48,16 @@ def parse_args():
     args = parser.parse_args()
     if args.interval <= 0:
         parser.error("--interval debe ser mayor que cero.")
+    if not 1 <= args.nodes <= 100:
+        parser.error("--nodes debe estar entre 1 y 100.")
     return args
+
+
+def node_ids(args):
+    """Identificadores de los nodos simulados: ``--node`` solo, o ``--prefix`` + número."""
+    if args.nodes == 1:
+        return [args.node]
+    return [f"{args.prefix}{number:03d}" for number in range(1, args.nodes + 1)]
 
 
 def generate_simulated_data(node_id, scenario="random"):
@@ -80,47 +100,50 @@ def generate_simulated_data(node_id, scenario="random"):
     }, selected_scenario
 
 
-def send_data(args):
+def send_reading(url, payload, headers):
+    """Envía una lectura y devuelve ``(ok, mensaje)``; nunca lanza por errores de red."""
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+    except requests.exceptions.RequestException as error:
+        return False, f"No se pudo conectar al servidor. Tipo de error: {error}"
+    if response.status_code == 201:
+        return True, "Envío exitoso."
+    return False, f"Error en el envío. Código: {response.status_code}. Respuesta: {response.text}"
+
+
+def send_data(args, sleep=time.sleep, max_rounds=None):
+    """Envía una lectura por nodo en cada ronda, esperando ``--interval`` entre rondas.
+
+    ``max_rounds`` y ``sleep`` existen para poder probarlo sin esperar; en uso normal
+    se ejecuta hasta que el usuario lo detiene con Ctrl+C.
+    """
     headers = {"X-API-Key": args.api_key} if args.api_key else {}
+    nodes = node_ids(args)
     print(
-        f"Simulador PyroGuard para {args.node}; destino {args.url}; "
+        f"Simulador PyroGuard para {', '.join(nodes)}; destino {args.url}; "
         f"escenario {args.scenario}; intervalo {args.interval}s."
     )
     if not args.api_key:
         print("Aviso: no se enviará X-API-Key; el servidor debe permitir ingesta local.")
 
+    rounds = 0
     try:
-        while True:
-            payload, scenario = generate_simulated_data(args.node, args.scenario)
-            print(
-                "SIMULADO | "
-                f"escenario={scenario} nodo={args.node} "
-                f"temperatura={payload['temperature']}C "
-                f"humedad={payload['humidity']}% humo={payload['smoke']} "
-                f"gas={payload['gas']} llama={payload['flame']}"
-            )
-            try:
-                response = requests.post(
-                    args.url,
-                    json=payload,
-                    headers=headers,
-                    timeout=10,
-                )
-                if response.status_code == 201:
-                    print("Envío exitoso.")
-                else:
-                    print(
-                        f"Error en el envío. Código: {response.status_code}. "
-                        f"Respuesta: {response.text}"
-                    )
-            except requests.exceptions.RequestException as error:
+        while max_rounds is None or rounds < max_rounds:
+            for node_id in nodes:
+                payload, scenario = generate_simulated_data(node_id, args.scenario)
                 print(
-                    "No se pudo conectar al servidor. "
-                    f"Tipo de error: {error}"
+                    "SIMULADO | "
+                    f"escenario={scenario} nodo={node_id} "
+                    f"temperatura={payload['temperature']}C "
+                    f"humedad={payload['humidity']}% humo={payload['smoke']} "
+                    f"gas={payload['gas']} llama={payload['flame']}"
                 )
-            time.sleep(args.interval)
+                print(send_reading(args.url, payload, headers)[1])
+            rounds += 1
+            sleep(args.interval)
     except KeyboardInterrupt:
-        print("\nSimulador detenido por el usuario.")
+        print("
+Simulador detenido por el usuario.")
 
 
 if __name__ == "__main__":
