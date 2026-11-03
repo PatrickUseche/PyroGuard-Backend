@@ -15,9 +15,15 @@ from .models import Alert, Node, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
 from .services.ingestion import DuplicateReadingError, ingest_reading
+from .services.alert_ordering import order_by_urgency
 from .services.live_readings import live_readings
 from .services.node_search import node_search_index
-from .services.nodes import get_dashboard_summary, get_node_status, nodes_with_current_risk
+from .services.nodes import (
+    get_dashboard_summary,
+    get_node_status,
+    get_top_risk_nodes,
+    nodes_with_current_risk,
+)
 from .services.pagination import TOTAL_COUNT_HEADER, paginate
 from .throttles import IngestThrottle, ReadThrottle
 from .services.reading_queries import filter_readings, parse_datetime_parameter
@@ -109,6 +115,26 @@ class DashboardSummaryView(APIView):
 
     def get(self, request):
         return Response(get_dashboard_summary())
+
+
+class DashboardTopRiskView(APIView):
+    """Los K nodos de mayor riesgo actual."""
+
+    permission_classes = [IsAuthenticatedOrPublicRead]
+    default_k = 5
+    max_k = 50
+
+    def get(self, request):
+        raw_k = request.query_params.get("k")
+        k = self.default_k
+        if raw_k is not None:
+            try:
+                k = int(raw_k)
+            except ValueError:
+                raise ParseError("'k' debe ser un número entero.") from None
+            if not 1 <= k <= self.max_k:
+                raise ParseError(f"'k' debe estar entre 1 y {self.max_k}.")
+        return Response(get_top_risk_nodes(k))
 
 
 class ReceiveMeasurementView(APIView):
@@ -210,8 +236,8 @@ class ActiveAlertListView(APIView):
         alerts = Alert.objects.filter(
             status__in=[Alert.Status.ACTIVE, Alert.Status.ACKNOWLEDGED]
         ).select_related("node", "reading")
-        alerts = alerts.order_by("-created_at", "-pk")
-        return Response(AlertSerializer(alerts, many=True).data)
+        # Las más urgentes primero: gravedad y, a igual gravedad, antigüedad.
+        return Response(AlertSerializer(order_by_urgency(alerts), many=True).data)
 
 
 class AlertDetailView(APIView):
