@@ -224,3 +224,81 @@ class RecentReadingsEndpointTests(LiveStateTestCase):
         response = self.client.get(self.url())
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@override_settings(INGEST_API_KEY=INGEST_KEY, TEMPERATURE_WINDOW_SIZE=3)
+class TemperatureWindowTests(LiveStateTestCase):
+    def status(self, node_id="NODE-001"):
+        return self.client.get(reverse("node_status", kwargs={"node_id": node_id}))
+
+    def test_node_without_readings_has_no_window(self):
+        response = self.status()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["temperature_window"])
+
+    def test_status_loads_the_window_from_the_latest_readings(self):
+        for minute, temperature in enumerate((50, 20, 30, 25)):
+            self.create_reading(minute, temperature=temperature)
+
+        window = self.status().data["temperature_window"]
+
+        # La ventana de 3 ya dejó fuera el 50 de la primera lectura.
+        self.assertEqual(window, {"size": 3, "readings": 3, "max": 30.0, "min": 20.0})
+
+    def test_window_with_fewer_readings_than_its_size(self):
+        self.create_reading(0, temperature=18)
+
+        window = self.status().data["temperature_window"]
+
+        self.assertEqual(window, {"size": 3, "readings": 1, "max": 18.0, "min": 18.0})
+
+    def test_ingestion_slides_the_window(self):
+        self.status()
+
+        for minute, temperature in enumerate((40, 22, 35, 28)):
+            self.ingest(minute, temperature=temperature)
+
+        window = self.status().data["temperature_window"]
+        self.assertEqual(window, {"size": 3, "readings": 3, "max": 35.0, "min": 22.0})
+
+    def test_the_old_maximum_leaves_the_window(self):
+        self.status()
+        self.ingest(0, temperature=90)
+        self.assertEqual(self.status().data["temperature_window"]["max"], 90.0)
+
+        for minute in (1, 2, 3):
+            self.ingest(minute, temperature=20)
+
+        self.assertEqual(self.status().data["temperature_window"]["max"], 20.0)
+
+    def test_ingestion_ignores_a_window_nobody_has_queried(self):
+        self.ingest(0, temperature=30)
+
+        self.assertFalse(live_readings.is_window_loaded("NODE-001"))
+        self.assertEqual(self.status().data["temperature_window"]["max"], 30.0)
+
+    def test_windows_are_independent_per_node(self):
+        other = Node.objects.create(node_id="NODE-002")
+        self.create_reading(0, temperature=10)
+        self.create_reading(0, temperature=70, node=other)
+
+        self.assertEqual(self.status().data["temperature_window"]["max"], 10.0)
+        self.assertEqual(self.status("NODE-002").data["temperature_window"]["min"], 70.0)
+
+    def test_second_status_reads_the_window_without_querying_readings(self):
+        self.create_reading(0)
+        self.status()
+
+        with patch.object(SensorReading.objects, "filter", wraps=SensorReading.objects.filter) as spy:
+            live_readings.temperature_window(self.node)
+
+        spy.assert_not_called()
+
+    def test_clear_forgets_the_windows(self):
+        self.create_reading(0)
+        self.status()
+
+        live_readings.clear()
+
+        self.assertFalse(live_readings.is_window_loaded("NODE-001"))

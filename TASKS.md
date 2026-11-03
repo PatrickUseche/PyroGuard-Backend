@@ -81,7 +81,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(api): pruebas del buffer de lecturas recientes y de `/recent/` [3.3]
 - [x] feat(readings): ventana deslizante de temperatura máxima y mínima por nodo [3.4]
 - [x] feat(nodes): exponer el máximo y el mínimo de la ventana en `/nodes/{id}/status/` [3.5]
-- [ ] test(nodes): pruebas de la ventana en el estado del nodo [3.6]
+- [x] test(nodes): pruebas de la ventana en el estado del nodo [3.6]
 - [ ] feat(cache): LRU para `get_node_status`, con invalidación al ingerir una lectura [3.7]
 - [ ] feat(cache): LRU para el resumen del dashboard con caducidad corta [3.8]
 - [ ] test(cache): pruebas de invalidación y de capacidad de las cachés [3.9]
