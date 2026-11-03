@@ -1,6 +1,9 @@
 import re
 import uuid
 
+from django.core.signals import request_finished
+from django.dispatch import receiver
+
 from .logging_utils import request_id_var
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -22,10 +25,15 @@ class RequestIdMiddleware:
         supplied = request.headers.get(REQUEST_ID_HEADER, "")
         request_id = supplied if _VALID_ID.fullmatch(supplied) else uuid.uuid4().hex
         request.request_id = request_id
-        token = request_id_var.set(request_id)
-        try:
-            response = self.get_response(request)
-        finally:
-            request_id_var.reset(token)
+        # No se restablece aquí: Django registra las respuestas 4xx/5xx (``django.request``)
+        # después de que la cadena de middleware termina, y deben llevar el mismo id.
+        request_id_var.set(request_id)
+        response = self.get_response(request)
         response[REQUEST_ID_HEADER] = request_id
         return response
+
+
+@receiver(request_finished)
+def clear_request_id(sender, **kwargs):
+    """Al cerrar la respuesta, el hilo deja de pertenecer a esa petición."""
+    request_id_var.set("-")
