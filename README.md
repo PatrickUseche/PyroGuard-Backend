@@ -688,9 +688,75 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
 6. Confirmar que el origen del frontend esté permitido por CORS y que el host
 	 de la API esté permitido en `ALLOWED_HOSTS`.
 
+### Conectar con PyroGuard-IA en Render
+
+La IA es un servicio web aparte (su repositorio trae `render.yaml`, con `healthCheckPath: /health`). El backend
+la consulta por HTTP y, si no responde, sigue funcionando solo con reglas. Para conectarla:
+
+| Variable (backend) | Valor | Notas |
+| --- | --- | --- |
+| `AI_SERVICE_URL` | `https://<servicio-ia>.onrender.com` | URL pública del servicio de IA **sin barra final**. Vacía = IA desactivada (se evalúa solo con reglas). Debe empezar por `http://` o `https://`, si no el backend no arranca |
+| `AI_API_KEY` | una clave larga y aleatoria | Se envía como `X-AI-API-Key`. **Debe ser idéntica a la `AI_API_KEY` configurada en el servicio de IA**; si no coinciden, la IA responde 401/403 y las lecturas quedan con `ai.status = REJECTED` |
+| `AI_CONNECT_TIMEOUT` | `3.0` (por defecto) | Segundos para establecer la conexión; detecta una IA caída rápido |
+| `AI_READ_TIMEOUT` | `10.0` (por defecto) | Segundos de espera de la inferencia una vez conectado |
+
+Puntos a tener en cuenta:
+
+- **Arranque en frío:** en los planes gratuitos Render duerme el servicio de IA tras unos minutos sin tráfico. La
+  primera lectura después tarda lo que tarde en despertar y puede agotar `AI_READ_TIMEOUT`: queda con
+  `ai.status = UNAVAILABLE` y se evalúa solo con reglas. No se pierde, pero ese caso hay que tenerlo presente al
+  medir. Un monitor que consulte `GET /api/health/` también despierta la IA (la consulta con un timeout de 2 s).
+- **La ingesta espera a la IA:** hasta `AI_CONNECT_TIMEOUT + AI_READ_TIMEOUT` (13 s por defecto) por lectura si la
+  IA está lenta o caída. Si los sensores no pueden esperar tanto, baja los timeouts o activa
+  `AI_ASYNC_EVALUATION=True` (ver «Evaluación diferida de la IA») y programa `drain_ai_queue`.
+- **Secretos:** `AI_API_KEY` se define en el panel de Render de cada servicio, nunca en el repositorio.
+- **Comprobación:** `GET https://<backend>.onrender.com/api/health/` debe mostrar `"ai": {"status": "ok"}`;
+  `unavailable` indica URL equivocada, servicio dormido o caído, y `disabled` que `AI_SERVICE_URL` está vacía.
+  Una lectura de prueba debe devolver `ai.status = OK` y `ai.model_version`.
+
 No ejecutes migraciones de producción desde una terminal local sin confirmar
 explícitamente la conexión seleccionada.
 
 Si el build falla antes de arrancar (por ejemplo `ValueError` en `settings.py`),
 Render sigue sirviendo el último despliegue que funcionó. Revisa la pestaña
 Events y compara el commit servido con `main`.
+
+### Lista de comprobación previa al despliegue
+
+Antes de fusionar a `main` (Render despliega desde ahí) o de cambiar variables en el panel:
+
+**Código**
+- [ ] El CI está en verde (`ruff`, migraciones al día, pruebas y cobertura ≥ 90 %).
+- [ ] `python manage.py makemigrations --check --dry-run` no detecta migraciones pendientes y las nuevas migraciones
+      se probaron contra una copia de la base (no contra producción).
+- [ ] `python manage.py check --deploy` con `DEBUG=False` solo muestra las dos advertencias asumidas (`W005`, `W021`).
+
+**Variables de entorno en Render**
+- [ ] `DEBUG=False` y `SECRET_KEY` definida (si falta, el arranque falla a propósito).
+- [ ] `DATABASE_URL` apunta a la base de producción; `INGEST_API_KEY` definida y entregada a los sensores.
+- [ ] `EXTRA_ALLOWED_HOSTS` y `EXTRA_CORS_ORIGINS` incluyen el dominio del frontend y de la API.
+- [ ] `CLIENT_IP_HEADER=CF-Connecting-IP` (o `NUM_PROXIES`) para que el límite de peticiones vea la IP real.
+- [ ] Si se usa la IA: `AI_SERVICE_URL` (sin barra final) y `AI_API_KEY` igual a la del servicio de IA.
+- [ ] Si se usan avisos: `NOTIFICATION_CHANNELS` y los datos de cada canal (`NOTIFY_EMAIL_TO` y `EMAIL_*`, o
+      `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`).
+- [ ] Ningún secreto está en el repositorio (`.env` está ignorado; revisa el diff).
+
+**Estado del servicio**
+- [ ] Una sola instancia y un solo worker de gunicorn, o ser consciente de que cada worker tiene su propio estado en
+      memoria (ver «Estado en memoria»).
+- [ ] Primer despliegue con HTTPS: la redirección y HSTS (30 días) se activan solos con `DEBUG=False`; si algo falla,
+      `SECURE_SSL_REDIRECT=False` y `SECURE_HSTS_SECONDS=0` lo revierten.
+
+**Tareas programadas** (Cron Jobs de Render, mismo repositorio y variables)
+- [ ] `send_notifications` cada minuto.
+- [ ] `check_offline_nodes` cada 5 minutos.
+- [ ] `aggregate_readings` cada hora y `purge_readings` a diario, **en ese orden**.
+- [ ] `drain_ai_queue` cada minuto, solo si `AI_ASYNC_EVALUATION=True`.
+
+**Después de desplegar**
+- [ ] Pestaña *Events* de Render: el commit servido es el de `main` y el build terminó bien.
+- [ ] `GET /api/health/` responde `status: ok` (o `degraded` si la IA está dormida).
+- [ ] `GET /api/docs/` carga y `GET /api/dashboard/summary/` responde con datos.
+- [ ] Una lectura de prueba (`simulador_iot.py --nodes 1 --api-key ...`) llega, aparece en `/api/nodes/<id>/status/` y,
+      si es `FIRE`, genera alerta y aviso.
+- [ ] El frontend puede consultar la API (sin errores de CORS) y muestra el indicador de salud.
