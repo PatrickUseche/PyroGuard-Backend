@@ -1,0 +1,63 @@
+# Blueprint de Render: crea el servidor y la base de datos del backend de una sola vez.
+# Pasos en el README, sección «Despliegue desde cero en Render».
+services:
+  - type: web
+    name: pyroguard-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput
+    # Un solo worker: el estado en memoria (cachés, lecturas recientes) es por proceso.
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1
+    healthCheckPath: /api/health/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: INGEST_API_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pyroguard-db
+          property: connectionString
+      - key: CLIENT_IP_HEADER
+        value: CF-Connecting-IP
+      # Se rellenan a mano en el panel de Render (dependen de URLs que aún no existen o son secretos):
+      - key: EXTRA_CORS_ORIGINS   # dominio del frontend, p. ej. https://pyroguard.vercel.app
+        sync: false
+      - key: EXTRA_ALLOWED_HOSTS  # solo si usas un dominio propio; *.onrender.com ya está permitido
+        sync: false
+      - key: AI_SERVICE_URL       # URL del servicio pyroguard-ia, sin barra final
+        sync: false
+      - key: AI_API_KEY           # igual a la AI_API_KEY del servicio de IA
+        sync: false
+
+databases:
+  - name: pyroguard-db
+    plan: free
+
+# Tareas programadas (Cron Jobs de Render: son de pago, por eso están comentadas).
+# Quita el comentario si las quieres; cada una usa el mismo repositorio y las mismas variables.
+#
+#  - type: cron
+#    name: pyroguard-send-notifications
+#    runtime: python
+#    schedule: "* * * * *"
+#    buildCommand: pip install -r requirements.txt
+#    startCommand: python manage.py send_notifications
+#
+#  - type: cron
+#    name: pyroguard-check-offline-nodes
+#    runtime: python
+#    schedule: "*/5 * * * *"
+#    buildCommand: pip install -r requirements.txt
+#    startCommand: python manage.py check_offline_nodes
+#
+#  - type: cron
+#    name: pyroguard-maintenance
+#    runtime: python
+#    schedule: "0 3 * * *"
+#    buildCommand: pip install -r requirements.txt
+#    startCommand: python manage.py aggregate_readings && python manage.py purge_readings
