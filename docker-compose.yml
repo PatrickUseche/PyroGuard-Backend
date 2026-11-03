@@ -1,0 +1,52 @@
+# Entorno local completo: backend + PyroGuard-IA + PostgreSQL.
+#   docker compose up --build
+# Backend en http://localhost:8000 (API en /api/, documentación en /api/docs/) e IA en http://localhost:8001.
+# Las claves de abajo son solo para desarrollo local; para algo real defínelas en un archivo .env propio.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pyroguard
+      POSTGRES_USER: pyroguard
+      POSTGRES_PASSWORD: pyroguard-local
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pyroguard -d pyroguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ia:
+    # El servicio de IA vive en otro repositorio: por defecto se espera a su lado (../PyroGuard - IA).
+    # Si lo tienes en otra ruta: IA_CONTEXT=/ruta/a/PyroGuard-IA docker compose up --build
+    build:
+      context: ${IA_CONTEXT:-../PyroGuard - IA}
+    environment:
+      AI_API_KEY: ${AI_API_KEY:-clave-ia-local}
+      PORT: "8001"
+    ports:
+      - "8001:8001"
+
+  backend:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      ia:
+        condition: service_started
+    environment:
+      DEBUG: "True"
+      SECRET_KEY: ${SECRET_KEY:-clave-django-solo-para-desarrollo-local}
+      DATABASE_URL: postgres://pyroguard:pyroguard-local@db:5432/pyroguard
+      INGEST_API_KEY: ${INGEST_API_KEY:-clave-ingesta-local}
+      AI_SERVICE_URL: http://ia:8001
+      AI_API_KEY: ${AI_API_KEY:-clave-ia-local}
+      AUTO_REGISTER_NODES: "True"
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

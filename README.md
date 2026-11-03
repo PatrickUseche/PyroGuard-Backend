@@ -86,6 +86,39 @@ python manage.py runserver
 
 El panel de administración queda en `http://localhost:8000/admin/`.
 
+## Docker
+
+Con Docker y Docker Compose se levanta todo sin instalar Python ni PostgreSQL: el backend, PyroGuard-IA y
+una base PostgreSQL.
+
+```bash
+# El repositorio de la IA debe estar junto a este: ../PyroGuard - IA (o indica otra ruta con IA_CONTEXT)
+docker compose up --build
+```
+
+| Servicio | Dirección | Notas |
+| --- | --- | --- |
+| Backend | `http://localhost:8000` | API en `/api/`, documentación en `/api/docs/`, admin en `/admin/` |
+| IA | `http://localhost:8001` | Se comunica con el backend por la red de Compose (`AI_SERVICE_URL=http://ia:8001`) |
+| PostgreSQL | solo dentro de Compose | Datos en el volumen `pgdata` |
+
+Al arrancar, el backend aplica las migraciones y recopila los estáticos (igual que el `Procfile`). Con las claves
+de desarrollo que trae `docker-compose.yml` (cámbialas con variables de entorno o un `.env` propio:
+`SECRET_KEY`, `INGEST_API_KEY`, `AI_API_KEY`) y `AUTO_REGISTER_NODES=True`, ya se puede enviar datos:
+
+```bash
+docker compose exec backend python manage.py createsuperuser            # acceso al admin
+docker compose exec backend python manage.py seed_demo                  # datos de ejemplo
+python simulador_iot.py --nodes 3 --api-key clave-ingesta-local         # desde tu máquina
+docker compose exec backend python manage.py test                       # pruebas dentro del contenedor
+docker compose down            # detiene (conserva los datos); con -v también borra la base
+```
+
+La imagen (`Dockerfile`) usa `python:3.13-slim`, instala solo `requirements.txt`, no corre como root y
+excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`send_notifications`,
+`check_offline_nodes`...) se pueden lanzar con `docker compose exec backend python manage.py <comando>`.
+`docker-compose.yml` es solo para desarrollo local, no para producción.
+
 ## Variables de entorno
 
 | Variable | Uso | Valor local de ejemplo |
