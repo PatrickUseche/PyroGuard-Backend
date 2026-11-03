@@ -9,6 +9,7 @@ from .views import (
     AlertListView,
     CloseAlertView,
     DashboardSummaryView,
+    HealthView,
     DashboardZonesView,
     DashboardTopRiskView,
     NodeLinkDetailView,
@@ -29,6 +30,7 @@ router.register("nodes", NodeViewSet, basename="node")
 urlpatterns = [
     path("readings/series/", ReadingSeriesView.as_view(), name="reading_series"),
     path("readings/", ReceiveMeasurementView.as_view(), name="receive_reading"),
+    path("health/", HealthView.as_view(), name="health"),
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard_summary"),
     path("dashboard/zones/", DashboardZonesView.as_view(), name="dashboard_zones"),
     path("dashboard/top-risk/", DashboardTopRiskView.as_view(), name="dashboard_top_risk"),
