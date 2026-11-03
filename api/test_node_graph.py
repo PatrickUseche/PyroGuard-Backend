@@ -147,7 +147,7 @@ class NodeLinksApiTests(APITestCase):
         node_graph.clear()
         self.addCleanup(node_graph.clear)
         self.nodes = make_nodes("A", "B", "C")
-        user = get_user_model().objects.create_user("operador", password="clave-segura-1")
+        user = get_user_model().objects.create_user("operador")
         self.token = Token.objects.create(user=user)
 
     def url(self, node_id="A"):
@@ -253,3 +253,129 @@ class NodeLinksApiTests(APITestCase):
 
         with self.assertNumQueries(1):  # solo comprobar que el nodo existe
             self.client.get(self.url("A"))
+
+
+@override_settings(PUBLIC_READ_ACCESS=True)
+class NodeNeighborsApiTests(APITestCase):
+    def setUp(self):
+        node_graph.clear()
+        self.addCleanup(node_graph.clear)
+        self.nodes = make_nodes("A", "B", "C", "D", "E", "SOLO")
+        for first, second in (("A", "B"), ("A", "E"), ("B", "C"), ("C", "D")):
+            NodeLink.objects.create(node_a=self.nodes[first], node_b=self.nodes[second])
+
+    def get(self, node_id="A", **params):
+        return self.client.get(reverse("node_neighbors", kwargs={"node_id": node_id}), params)
+
+    def test_default_is_the_direct_neighbors(self):
+        response = self.get()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["node_id"], "A")
+        self.assertEqual(response.data["hops"], 1)
+        self.assertEqual(
+            response.data["neighbors"],
+            [{"node_id": "B", "hops": 1}, {"node_id": "E", "hops": 1}],
+        )
+
+    def test_more_hops_reach_farther_nodes_ordered_by_distance_then_id(self):
+        response = self.get(hops=3)
+
+        self.assertEqual(
+            response.data["neighbors"],
+            [
+                {"node_id": "B", "hops": 1},
+                {"node_id": "E", "hops": 1},
+                {"node_id": "C", "hops": 2},
+                {"node_id": "D", "hops": 3},
+            ],
+        )
+
+    def test_the_hop_limit_is_respected(self):
+        ids = [n["node_id"] for n in self.get(hops=2).data["neighbors"]]
+
+        self.assertEqual(ids, ["B", "E", "C"])
+
+    def test_a_node_without_links_has_no_neighbors(self):
+        self.assertEqual(self.get("SOLO", hops=5).data["neighbors"], [])
+
+    def test_unknown_node_is_404(self):
+        self.assertEqual(self.get("NO-EXISTE").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invalid_hops_are_rejected(self):
+        for hops in ("0", "11", "-1", "abc", "1.5"):
+            with self.subTest(hops=hops):
+                self.assertEqual(self.get(hops=hops).status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_settings(PUBLIC_READ_ACCESS=False)
+    def test_requires_authentication_when_reads_are_private(self):
+        self.assertEqual(self.get().status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@override_settings(INGEST_API_KEY="test-ingest-key", NEIGHBOR_WARNING_HOPS=2)
+class FireNeighborWarningTests(APITestCase):
+    def setUp(self):
+        node_graph.clear()
+        self.addCleanup(node_graph.clear)
+        self.nodes = make_nodes("A", "B", "C", "D")
+        for first, second in (("A", "B"), ("B", "C"), ("C", "D")):
+            NodeLink.objects.create(node_a=self.nodes[first], node_b=self.nodes[second])
+
+    def ingest(self, node_id="A", fire=True):
+        payload = {
+            "node_id": node_id,
+            "temperature": 90 if fire else 22,
+            "humidity": 20,
+            "smoke": 900 if fire else 5,
+            "flame": fire,
+            "timestamp": f"2026-10-30T12:00:{len(node_id) + (0 if fire else 30):02d}Z",
+        }
+        return self.client.post(
+            reverse("receive_reading"), payload, format="json", HTTP_X_API_KEY="test-ingest-key"
+        )
+
+    def test_a_fire_warns_the_neighbors_within_the_configured_hops(self):
+        with self.assertLogs("api.readings", level="WARNING") as logs:
+            response = self.ingest("A")
+
+        self.assertEqual(response.data["risk_level"], "FIRE")
+        warning = next(line for line in logs.output if "en FIRE" in line)
+        self.assertIn("Nodo A", warning)
+        self.assertIn("B (1)", warning)
+        self.assertIn("C (2)", warning)
+
+    def test_nodes_beyond_the_hop_limit_are_not_warned(self):
+        with self.assertLogs("api.readings", level="WARNING") as logs:
+            self.ingest("A")
+
+        self.assertNotIn("D (3)", " ".join(logs.output))
+
+    def test_a_normal_reading_warns_nobody(self):
+        with self.assertNoLogs("api.readings", level="WARNING"):
+            response = self.ingest("A", fire=False)
+
+        self.assertEqual(response.data["risk_level"], "NORMAL")
+
+    def test_a_fire_in_a_node_without_neighbors_logs_no_warning(self):
+        make_nodes("SOLO")
+
+        with self.assertNoLogs("api.readings", level="WARNING"):
+            self.ingest("SOLO")
+
+    @override_settings(NEIGHBOR_WARNING_HOPS=0)
+    def test_zero_hops_turns_the_warning_off(self):
+        with self.assertNoLogs("api.readings", level="WARNING"):
+            self.ingest("A")
+
+    def test_the_warning_returns_the_neighbors_with_their_hops(self):
+        from .services.neighbor_warnings import warn_neighbors_of_fire
+
+        self.assertEqual(warn_neighbors_of_fire("B"), {"A": 1, "C": 1, "D": 2})
+
+    def test_a_failure_while_warning_does_not_lose_the_reading(self):
+        with patch("api.services.ingestion.warn_neighbors_of_fire", side_effect=RuntimeError("fallo")):
+            with self.assertLogs("api.readings", level="ERROR"):
+                response = self.ingest("A")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["risk_level"], "FIRE")

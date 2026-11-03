@@ -12,6 +12,7 @@ from .views import (
     DashboardTopRiskView,
     NodeLinkDetailView,
     NodeLinksView,
+    NodeNeighborsView,
     NodeReadingsView,
     NodeSearchView,
     NodeRecentReadingsView,
@@ -32,6 +33,7 @@ urlpatterns = [
         ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),
         name="api_token_auth",
     ),
+    path("nodes/<str:node_id>/neighbors/", NodeNeighborsView.as_view(), name="node_neighbors"),
     path("nodes/<str:node_id>/links/", NodeLinksView.as_view(), name="node_links"),
     path(
         "nodes/<str:node_id>/links/<str:neighbor_id>/",

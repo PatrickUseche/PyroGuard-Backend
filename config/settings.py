@@ -293,6 +293,8 @@ NODE_STATUS_CACHE_SIZE = _env_non_negative_int("NODE_STATUS_CACHE_SIZE", 256)
 DASHBOARD_CACHE_SECONDS = _env_non_negative_float("DASHBOARD_CACHE_SECONDS", 5.0)
 # Descarta las lecturas repetidas (mismo nodo y mismo timestamp) con un filtro de Bloom.
 DEDUPLICATE_READINGS = _env_bool("DEDUPLICATE_READINGS", True)
+# Cuántos saltos hacia los vecinos se avisa cuando un nodo entra en FIRE (0 lo desactiva).
+NEIGHBOR_WARNING_HOPS = _env_non_negative_int("NEIGHBOR_WARNING_HOPS", 2)
 # Lecturas que recuerda el filtro antes de reiniciarse (ver services/duplicate_readings.py).
 DUPLICATE_FILTER_CAPACITY = _env_positive_int("DUPLICATE_FILTER_CAPACITY", 100000)
 
