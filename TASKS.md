@@ -93,7 +93,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(api): `GET /dashboard/top-risk/?k=` con los K nodos de mayor riesgo usando el montículo [3.15]
 - [x] test(api): pruebas del orden de alertas y del top-K [3.16]
 - [x] feat(nodes): modelo `NodeLink` para registrar qué nodos son vecinos, con migración [3.17]
-- [ ] feat(nodes): construir el grafo de nodos a partir de `NodeLink` [3.18]
+- [x] feat(nodes): construir el grafo de nodos a partir de `NodeLink` [3.18]
 - [ ] feat(api): crear y listar los vecinos de un nodo [3.19]
 - [ ] feat(risk): avisar a los nodos vecinos hasta K saltos de un nodo en `FIRE` con BFS [3.20]
 - [ ] feat(api): `GET /nodes/{id}/neighbors/?hops=` [3.21]
