@@ -131,7 +131,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [ ] feat(alerts): ventana deslizante para no repetir avisos del mismo nodo [5.7]
 - [ ] feat(nodes): comando `check_offline_nodes` [5.8]
 - [ ] feat(alerts): avisar cuando un nodo OFFLINE tiene una alerta activa [5.9]
-- [ ] test(alerts): pruebas de los canales con envío simulado [5.10]
+- [x] test(alerts): pruebas de los canales con envío simulado [5.10]
 - [ ] test(alerts): pruebas de la prioridad y de la ventana de avisos [5.11]
 - [ ] docs(alerts): documentar la configuración de las notificaciones [5.12]
 
