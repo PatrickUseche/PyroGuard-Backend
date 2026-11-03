@@ -1,12 +1,13 @@
 """Cola de avisos: se encolan en la base y se envían por prioridad.
 
-* ``enqueue`` guarda un aviso pendiente.
+* ``enqueue`` guarda un aviso pendiente (con una ventana que evita repetirlos).
 * ``pending_heap`` ordena los pendientes con un ``PriorityMinHeap``: primero los más
   urgentes y, a igual urgencia, los más antiguos.
 * ``send_pending`` los saca del montículo uno a uno y los entrega por cada canal activo.
 """
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -31,7 +32,22 @@ def outbox_priority(row):
 
 
 def enqueue(kind, node, subject, message):
-    """Guarda un aviso pendiente en la cola."""
+    """Guarda un aviso pendiente; devuelve ``None`` si se omite por la ventana de silencio.
+
+    Ventana deslizante: si ese mismo nodo ya tuvo un aviso del mismo tipo en los últimos
+    ``NOTIFICATION_COOLDOWN_SECONDS`` segundos (enviado o aún pendiente), no se encola otro.
+    La ventana se desplaza con cada aviso nuevo, así un nodo que oscila entre estados no
+    llena de mensajes el canal. Se calcula con la base, de modo que vale para todos los workers.
+    """
+    window = settings.NOTIFICATION_COOLDOWN_SECONDS
+    if window > 0 and node is not None:
+        since = timezone.now() - timedelta(seconds=window)
+        if NotificationOutbox.objects.filter(node=node, kind=kind, created_at__gte=since).exists():
+            logger.info(
+                "Aviso %s del nodo %s omitido: ya se avisó en los últimos %s s.",
+                kind, node.node_id, window,
+            )
+            return None
     return NotificationOutbox.objects.create(
         node=node,
         kind=kind,
