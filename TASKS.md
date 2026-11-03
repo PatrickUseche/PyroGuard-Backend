@@ -124,7 +124,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 - [x] feat(alerts): interfaz `Notifier` y canal de consola [5.1]
 - [x] feat(alerts): canal de correo configurable por variables de entorno [5.2]
-- [ ] feat(alerts): canal de Telegram configurable por variables de entorno [5.3]
+- [x] feat(alerts): canal de Telegram configurable por variables de entorno [5.3]
 - [ ] feat(alerts): cola de prioridad (montículo) con los avisos pendientes [5.4]
 - [ ] feat(alerts): comando `send_notifications` que drena la cola por prioridad [5.5]
 - [ ] feat(alerts): avisar al crear una alerta `FIRE` [5.6]
