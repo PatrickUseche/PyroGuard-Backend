@@ -54,3 +54,11 @@ jobs:
       - name: Ejecutar pruebas con cobertura
         run: coverage run manage.py test
 
+      - name: Resumen de cobertura
+        if: always()
+        run: |
+          {
+            echo "### Cobertura (Python ${{ matrix.python-version }})"
+            echo
+            coverage report --format=markdown --skip-covered
+          } >> "$GITHUB_STEP_SUMMARY"

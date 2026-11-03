@@ -155,7 +155,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] style: corregir los avisos de ruff [7.2]
 - [x] chore(ci): paso de ruff en GitHub Actions [7.3]
 - [x] chore(ci): medir la cobertura de pruebas con coverage.py [7.4]
-- [ ] chore(ci): mostrar el resumen de cobertura en el job [7.5]
+- [x] chore(ci): mostrar el resumen de cobertura en el job [7.5]
 - [ ] feat(admin): filtros y búsqueda de nodos [7.6]
 - [ ] feat(admin): filtros y búsqueda de lecturas [7.7]
 - [ ] feat(admin): filtros y búsqueda de alertas [7.8]
