@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ParseError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -14,6 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 from .models import Alert, Node, NodeLink, SensorReading
 from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
 from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
+from .services.health import get_health
 from .services.ingestion import DuplicateReadingError, ingest_reading
 from .services.alert_ordering import order_by_urgency
 from .services.live_readings import live_readings
@@ -187,6 +188,18 @@ class NodeSearchView(APIView):
         return Response(
             {"prefix": prefix, "results": node_search_index.search(prefix, limit)}
         )
+
+
+class HealthView(APIView):
+    """Estado del backend, la base de datos y la IA. Es público y sin límite de peticiones."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = []
+
+    def get(self, request):
+        body, http_status = get_health()
+        return Response(body, status=http_status)
 
 
 class DashboardSummaryView(APIView):
