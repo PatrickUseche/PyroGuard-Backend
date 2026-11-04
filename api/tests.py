@@ -1720,7 +1720,8 @@ class ThrottlingTests(APITestCase):
     def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
-        self.assertEqual(set(rates), {"read", "ingest", "login"})
+        self.assertEqual(set(rates), {"read", "ingest", "login", "google_login"})
+        self.assertEqual(rates["google_login"], "10/min")
         self.assertIn(
             "api.throttles.ReadThrottle",
             settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],

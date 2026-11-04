@@ -12,6 +12,7 @@ from .views import (
     DashboardSummaryView,
     DashboardTopRiskView,
     DashboardZonesView,
+    GoogleLoginView,
     HealthView,
     NodeLinkDetailView,
     NodeLinksView,
@@ -40,6 +41,7 @@ urlpatterns = [
         ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),
         name="api_token_auth",
     ),
+    path("auth/google/", GoogleLoginView.as_view(), name="google_login"),
     path("nodes/<str:node_id>/neighbors/", NodeNeighborsView.as_view(), name="node_neighbors"),
     path("nodes/<str:node_id>/links/", NodeLinksView.as_view(), name="node_links"),
     path(

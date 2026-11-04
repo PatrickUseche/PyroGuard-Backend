@@ -17,6 +17,39 @@ class JsonBooleanField(serializers.BooleanField):
         self.fail("invalid", input=data)
 
 
+class GoogleCredentialField(serializers.CharField):
+    default_error_messages = {
+        "invalid": "La credencial de Google debe ser texto.",
+        "max_length": "La credencial de Google no puede superar 4096 caracteres.",
+        "required": "La credencial de Google es obligatoria.",
+    }
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            self.fail("invalid")
+        return super().to_internal_value(data)
+
+
+class GoogleCredentialSerializer(serializers.Serializer):
+    credential = GoogleCredentialField(
+        allow_blank=True,
+        max_length=4096,
+        trim_whitespace=False,
+    )
+
+
+class GoogleUserSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    email = serializers.EmailField(allow_blank=True)
+    name = serializers.CharField()
+    can_manage_alerts = serializers.BooleanField()
+
+
+class GoogleAuthResponseSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    user = GoogleUserSerializer()
+
+
 class SensorReadingSerializer(serializers.ModelSerializer):
     node_id = serializers.CharField(
         write_only=True,

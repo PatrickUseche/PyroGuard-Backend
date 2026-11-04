@@ -53,6 +53,13 @@ class LoginThrottle(_IPMethodThrottle):
     safe_methods = False
 
 
+class GoogleLoginThrottle(_IPMethodThrottle):
+    """Limita por IP los intentos de acceso con Google."""
+
+    scope = "google_login"
+    safe_methods = False
+
+
 class IngestThrottle(_IPMethodThrottle):
     """Ingesta POST de lecturas; el límite es holgado para varios nodos por IP."""
 

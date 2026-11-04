@@ -5,10 +5,23 @@ from django.conf import settings
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 logger = logging.getLogger("api.permissions")
+OPERATORS_GROUP = "Operadores"
 
 
 def _is_authenticated(request):
     return bool(request.user and request.user.is_authenticated)
+
+
+def can_manage_alerts(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and (
+            user.is_superuser
+            or user.is_staff
+            or user.groups.filter(name=OPERATORS_GROUP).exists()
+        )
+    )
 
 
 class IsAuthenticatedOrPublicRead(BasePermission):
