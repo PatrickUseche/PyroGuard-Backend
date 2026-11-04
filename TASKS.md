@@ -182,3 +182,14 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(deploy): el `Procfile` migra y recopila estáticos antes de arrancar gunicorn [8.7]
 - [x] fix(config): tratar una variable booleana vacía como no definida; el build de Render fallaba con `DEBUG` vacía [8.5]
 - [x] test(config): pruebas de `_env_bool` (vacía, valores válidos e inválidos) [8.6]
+
+## Fase 9 — Acceso con Google
+
+- [x] feat(auth): variable `GOOGLE_CLIENT_ID`, dependencia `google-auth` y modelo `GoogleAccount` [9.1]
+- [ ] feat(auth): generación de nombre de usuario válido (4 a 16 caracteres) a partir del correo [9.2]
+- [ ] feat(auth): `POST /api/auth/google/` que verifica la credencial y devuelve el token [9.3]
+- [ ] feat(auth): `GET /api/auth/me/` y `POST /api/auth/logout/` que invalida el token [9.4]
+- [ ] feat(auth): grupo «Operadores» y permiso para reconocer y cerrar alertas [9.5]
+- [ ] refactor(auth): retirar el inicio de sesión con contraseña de la API [9.6]
+- [ ] test(auth): pruebas del acceso con Google y de los permisos [9.7]
+- [ ] docs(auth): README y `.env.example` del acceso con Google [9.8]
