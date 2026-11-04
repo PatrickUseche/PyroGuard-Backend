@@ -24,6 +24,13 @@ def can_manage_alerts(user):
     )
 
 
+class CanManageAlerts(BasePermission):
+    message = "Tu cuenta no tiene permiso para gestionar alertas."
+
+    def has_permission(self, request, _view):
+        return can_manage_alerts(request.user)
+
+
 class IsAuthenticatedOrPublicRead(BasePermission):
     """Las lecturas son públicas salvo que PUBLIC_READ_ACCESS sea False."""
 

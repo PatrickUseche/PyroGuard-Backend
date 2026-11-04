@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import requests
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
@@ -605,6 +606,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_acknowledge_and_close_transitions(self):
         user = get_user_model().objects.create_user(username="alert-manager")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
 
         acknowledge_response = self.client.post(
@@ -622,6 +624,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_active_can_close_directly(self):
         user = get_user_model().objects.create_user(username="alert-closer")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
 
         response = self.client.post(reverse("alert_close", args=[self.alert.pk]))
@@ -633,6 +636,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_invalid_transition_returns_conflict(self):
         user = get_user_model().objects.create_user(username="alert-reviewer")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
         self.alert.status = Alert.Status.CLOSED
         self.alert.closed_at = timezone.now()

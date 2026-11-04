@@ -18,6 +18,7 @@ from rest_framework.viewsets import ModelViewSet
 from . import openapi as o
 from .models import Alert, Node, NodeLink, SensorReading
 from .permissions import (
+    CanManageAlerts,
     IsAuthenticatedOrIngestAPIKey,
     IsAuthenticatedOrPublicRead,
     can_manage_alerts,
@@ -692,7 +693,7 @@ class AlertDetailView(APIView):
 
 
 class AlertTransitionView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanManageAlerts]
     target_status = None
 
     def post(self, request, alert_id):
@@ -732,7 +733,8 @@ class AlertTransitionView(APIView):
 
 @extend_schema(
     summary="Reconocer una alerta",
-    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    description="Requiere ser staff, superusuario o pertenecer a «Operadores». "
+    "Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
     request=None,
     responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
 )
@@ -742,7 +744,8 @@ class AcknowledgeAlertView(AlertTransitionView):
 
 @extend_schema(
     summary="Cerrar una alerta",
-    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    description="Requiere ser staff, superusuario o pertenecer a «Operadores». "
+    "Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
     request=None,
     responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
 )
