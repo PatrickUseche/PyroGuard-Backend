@@ -20,7 +20,7 @@ from .services.node_status_cache import NodeStatusCache, node_status_cache
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 

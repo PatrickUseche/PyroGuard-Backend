@@ -40,7 +40,7 @@ from .services.risk_rules import evaluate_risk
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 
@@ -783,7 +783,7 @@ class NodeApiTests(APITestCase):
         self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class DashboardAndLoginTests(APITestCase):
+class DashboardAndAuthTests(APITestCase):
     def test_dashboard_summary_with_no_nodes(self):
         response = self.client.get(reverse("dashboard_summary"))
 
@@ -855,21 +855,22 @@ class DashboardAndLoginTests(APITestCase):
         self.assertEqual(response.data["overall_risk"], "FIRE")
         self.assertEqual(len(response.data["latest_readings"]), 2)
 
-    def test_token_login(self):
+    def test_token_authentication_for_user_profile(self):
         user = get_user_model().objects.create_user(
             username="api-login",
-            password="strong-password-123",
+            email="api-login@gmail.com",
         )
+        token = Token.objects.create(user=user)
 
-        response = self.client.post(
-            reverse("api_token_auth"),
-            {"username": user.username, "password": "strong-password-123"},
-            format="json",
+        response = self.client.get(
+            reverse("auth_me"),
+            HTTP_AUTHORIZATION=f"Token {token.key}",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("token", response.data)
-
+        self.assertEqual(response.data["username"], user.username)
+        self.assertEqual(response.data["email"], user.email)
+        self.assertFalse(response.data["can_manage_alerts"])
 
 class AIServiceSettingsTests(SimpleTestCase):
     def test_service_url_is_normalized(self):
@@ -1588,11 +1589,11 @@ class ThrottlingTests(APITestCase):
         self.addCleanup(cache.clear)
         self.node = Node.objects.create(node_id="NODE-001")
 
-    def limit(self, read="1000/min", ingest="1000/min", login="1000/min"):
+    def limit(self, read="1000/min", ingest="1000/min", google_login="1000/min"):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": ingest, "login": login},
+            {"read": read, "ingest": ingest, "google_login": google_login},
         )
 
     def post_reading(self):
@@ -1669,62 +1670,71 @@ class ThrottlingTests(APITestCase):
             [status.HTTP_401_UNAUTHORIZED] * 3,
         )
 
-    def login(self, password="mala"):
-        return self.client.post(
-            reverse("api_token_auth"),
-            {"username": "operador", "password": password},
-            format="json",
-        )
+    def login(self, **headers):
+        with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
+            with patch(
+                "api.services.google_auth.verify_credential",
+                return_value={
+                    "sub": "throttle-user",
+                    "email": "operador@gmail.com",
+                    "email_verified": True,
+                },
+            ):
+                return self.client.post(
+                    reverse("google_login"),
+                    {"credential": "mock-credential"},
+                    format="json",
+                    **headers,
+                )
 
-    def test_login_attempts_are_limited_per_ip(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="3/min"):
+    def test_google_login_attempts_are_limited_per_ip(self):
+        with self.limit(google_login="3/min"):
             statuses = [self.login().status_code for _ in range(4)]
 
-        self.assertEqual(statuses, [400, 400, 400, 429])
+        self.assertEqual(
+            statuses,
+            [status.HTTP_200_OK, status.HTTP_200_OK, status.HTTP_200_OK,
+             status.HTTP_429_TOO_MANY_REQUESTS],
+        )
 
-    def test_correct_password_is_also_blocked_once_the_limit_is_reached(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="2/min"):
+    def test_valid_google_login_is_blocked_once_the_limit_is_reached(self):
+        with self.limit(google_login="2/min"):
             self.login()
             self.login()
-            response = self.login(password="buena")
+            response = self.login()
 
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertGreater(int(response["Retry-After"]), 0)
 
-    def test_login_limit_does_not_consume_the_read_limit(self):
-        with self.limit(read="1/min", login="5/min"):
+    def test_google_login_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", google_login="5/min"):
             for _ in range(3):
-                self.login()
+                self.assertEqual(self.login().status_code, status.HTTP_200_OK)
             response = self.client.get(reverse("dashboard_summary"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_exhausted_login_limit_does_not_block_reads(self):
-        with self.limit(read="5/min", login="1/min"):
-            self.login()
+    def test_exhausted_google_login_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", google_login="1/min"):
+            self.assertEqual(self.login().status_code, status.HTTP_200_OK)
             blocked = self.login()
             response = self.client.get(reverse("dashboard_summary"))
 
         self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_login_still_returns_a_token_within_the_limit(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="3/min"):
-            response = self.login(password="buena")
+    def test_google_login_still_returns_a_token_within_the_limit(self):
+        with self.limit(google_login="3/min"):
+            response = self.login()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
+        self.assertTrue(Token.objects.filter(key=response.data["token"]).exists())
 
     def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
-        self.assertEqual(set(rates), {"read", "ingest", "login", "google_login"})
+        self.assertEqual(set(rates), {"read", "ingest", "google_login"})
         self.assertEqual(rates["google_login"], "10/min")
         self.assertIn(
             "api.throttles.ReadThrottle",
@@ -1825,13 +1835,21 @@ class ReadAccessTests(APITestCase):
             with self.subTest(endpoint=name):
                 self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
 
-    @override_settings(PUBLIC_READ_ACCESS=False)
-    def test_closed_reads_do_not_block_the_login(self):
-        response = self.client.post(
-            reverse("api_token_auth"),
-            {"username": "operador", "password": "x"},
-            format="json",
-        )
+    @override_settings(PUBLIC_READ_ACCESS=False, GOOGLE_CLIENT_ID="test-google-client")
+    def test_closed_reads_do_not_block_google_login(self):
+        with patch(
+            "api.services.google_auth.verify_credential",
+            return_value={
+                "sub": "public-login-user",
+                "email": "operador@gmail.com",
+                "email_verified": True,
+            },
+        ):
+            response = self.client.post(
+                reverse("google_login"),
+                {"credential": "mock-credential"},
+                format="json",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
@@ -2068,7 +2086,7 @@ class ClientIPThrottlingTests(APITestCase):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": "1000/min", "login": "1000/min"},
+            {"read": read, "ingest": "1000/min", "google_login": "1000/min"},
         )
 
     def get(self, **headers):
@@ -2130,26 +2148,35 @@ class ClientIPThrottlingTests(APITestCase):
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_200_OK)
 
-    def test_ingest_and_login_quotas_use_the_same_client_ip(self):
-        user_model = get_user_model()
-        user_model.objects.create_user("operador", password="buena")
+    def test_ingest_and_google_login_quotas_use_the_same_client_ip(self):
         with patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": "1000/min", "ingest": "1000/min", "login": "1/min"},
+            {"read": "1000/min", "ingest": "1000/min", "google_login": "1/min"},
         ):
-            statuses = [
-                self.client.post(
-                    reverse("api_token_auth"),
-                    {"username": "operador", "password": "mala"},
-                    format="json",
-                    HTTP_CF_CONNECTING_IP=ip,
-                ).status_code
-                for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
-            ]
+            with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
+                with patch(
+                    "api.services.google_auth.verify_credential",
+                    return_value={
+                        "sub": "ip-test-user",
+                        "email": "operador@gmail.com",
+                        "email_verified": True,
+                    },
+                ):
+                    statuses = [
+                        self.client.post(
+                            reverse("google_login"),
+                            {"credential": "mock-credential"},
+                            format="json",
+                            HTTP_CF_CONNECTING_IP=ip,
+                        ).status_code
+                        for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
+                    ]
 
-        self.assertEqual(statuses, [400, 429, 400])
-
+        self.assertEqual(
+            statuses,
+            [status.HTTP_200_OK, status.HTTP_429_TOO_MANY_REQUESTS, status.HTTP_200_OK],
+        )
 
 class ClientIPSettingsTests(SimpleTestCase):
     def test_header_is_optional(self):

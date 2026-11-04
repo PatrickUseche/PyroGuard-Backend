@@ -16,7 +16,7 @@ from .services.node_graph import node_graph
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 
