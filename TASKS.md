@@ -192,4 +192,4 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(auth): grupo «Operadores» y permiso para reconocer y cerrar alertas [9.5]
 - [x] refactor(auth): retirar el inicio de sesión con contraseña de la API [9.6]
 - [x] test(auth): pruebas del acceso con Google y de los permisos [9.7]
-- [ ] docs(auth): README y `.env.example` del acceso con Google [9.8]
+- [x] docs(auth): README y `.env.example` del acceso con Google [9.8]
