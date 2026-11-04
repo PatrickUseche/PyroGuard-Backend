@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import requests
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
@@ -30,16 +31,17 @@ from config.settings import (
 )
 
 from .exceptions import api_exception_handler
-from .models import Alert, Node, RiskAssessment, SensorReading
+from .models import Alert, GoogleAccount, Node, RiskAssessment, SensorReading
 from .serializers import SensorReadingSerializer
 from .services.ai_client import AIPrediction, build_payload, request_prediction
 from .services.alerts import maybe_create_alert
 from .services.risk_rules import evaluate_risk
+from .services.users import build_username
 
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 
@@ -605,6 +607,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_acknowledge_and_close_transitions(self):
         user = get_user_model().objects.create_user(username="alert-manager")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
 
         acknowledge_response = self.client.post(
@@ -622,6 +625,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_active_can_close_directly(self):
         user = get_user_model().objects.create_user(username="alert-closer")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
 
         response = self.client.post(reverse("alert_close", args=[self.alert.pk]))
@@ -633,6 +637,7 @@ class AlertEndpointTests(APITestCase):
 
     def test_invalid_transition_returns_conflict(self):
         user = get_user_model().objects.create_user(username="alert-reviewer")
+        user.groups.add(Group.objects.get(name="Operadores"))
         self.client.force_authenticate(user=user)
         self.alert.status = Alert.Status.CLOSED
         self.alert.closed_at = timezone.now()
@@ -650,6 +655,77 @@ class AlertEndpointTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_only_operators_and_superusers_can_transition_alerts(self):
+        acknowledge_url = reverse("alert_acknowledge", args=[self.alert.pk])
+        close_url = reverse("alert_close", args=[self.alert.pk])
+        unauthenticated = self.client.post(acknowledge_url)
+        regular_user = get_user_model().objects.create_user(
+            username="no-alert-permission",
+            email="no-alert-permission@gmail.com",
+        )
+        regular_token = Token.objects.create(user=regular_user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {regular_token.key}")
+        forbidden = self.client.post(acknowledge_url)
+
+        self.assertEqual(unauthenticated.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(forbidden.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            forbidden.data,
+            {
+                "status": "error",
+                "errors": {
+                    "detail": "Tu cuenta no tiene permiso para gestionar alertas."
+                },
+            },
+        )
+
+        operator = get_user_model().objects.create_user(
+            username="group-alert-manager",
+            email="group-alert-manager@gmail.com",
+        )
+        operator.groups.add(Group.objects.get(name="Operadores"))
+        operator_token = Token.objects.create(user=operator)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {operator_token.key}")
+        acknowledged = self.client.post(acknowledge_url)
+        operator_profile = self.client.get(reverse("auth_me"))
+
+        self.assertEqual(acknowledged.status_code, status.HTTP_200_OK)
+        self.assertTrue(operator_profile.data["can_manage_alerts"])
+
+        superuser = get_user_model().objects.create_superuser(
+            username="alert-superuser",
+            email="alert-superuser@gmail.com",
+            password="test-password",
+        )
+        superuser_token = Token.objects.create(user=superuser)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {superuser_token.key}")
+        closed = self.client.post(close_url)
+        superuser_profile = self.client.get(reverse("auth_me"))
+
+        self.assertEqual(closed.status_code, status.HTTP_200_OK)
+        self.assertTrue(superuser_profile.data["can_manage_alerts"])
+
+        staff_user = get_user_model().objects.create_user(
+            username="staff-alert-manager",
+            email="staff-alert-manager@gmail.com",
+            is_staff=True,
+        )
+        staff_token = Token.objects.create(user=staff_user)
+        staff_alert = Alert.objects.create(
+            node=self.node,
+            reading=self.reading,
+            level=Alert.Level.WARNING,
+            message="Alerta de prueba para staff",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {staff_token.key}")
+        staff_response = self.client.post(
+            reverse("alert_acknowledge", args=[staff_alert.pk])
+        )
+        staff_profile = self.client.get(reverse("auth_me"))
+
+        self.assertEqual(staff_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(staff_profile.data["can_manage_alerts"])
 
 
 class NodeApiTests(APITestCase):
@@ -779,7 +855,7 @@ class NodeApiTests(APITestCase):
         self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class DashboardAndLoginTests(APITestCase):
+class DashboardAndAuthTests(APITestCase):
     def test_dashboard_summary_with_no_nodes(self):
         response = self.client.get(reverse("dashboard_summary"))
 
@@ -851,20 +927,313 @@ class DashboardAndLoginTests(APITestCase):
         self.assertEqual(response.data["overall_risk"], "FIRE")
         self.assertEqual(len(response.data["latest_readings"]), 2)
 
-    def test_token_login(self):
+    def test_token_authentication_for_user_profile(self):
         user = get_user_model().objects.create_user(
             username="api-login",
-            password="strong-password-123",
+            email="api-login@gmail.com",
         )
+        token = Token.objects.create(user=user)
 
-        response = self.client.post(
-            reverse("api_token_auth"),
-            {"username": user.username, "password": "strong-password-123"},
-            format="json",
+        response = self.client.get(
+            reverse("auth_me"),
+            HTTP_AUTHORIZATION=f"Token {token.key}",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("token", response.data)
+        self.assertEqual(response.data["username"], user.username)
+        self.assertEqual(response.data["email"], user.email)
+        self.assertFalse(response.data["can_manage_alerts"])
+
+
+class BuildUsernameTests(SimpleTestCase):
+    username_pattern = r"^[a-z0-9_.-]{4,16}$"
+
+    def assert_valid_username(self, username):
+        self.assertRegex(username, self.username_pattern)
+
+    def test_short_local_parts_are_completed(self):
+        for email, expected in (
+            ("a@gmail.com", "ausuario"),
+            ("ab@gmail.com", "abusuario"),
+            ("abc@gmail.com", "abcusuario"),
+            ("@gmail.com", "usuario"),
+        ):
+            with self.subTest(email=email):
+                username = build_username(email, lambda _candidate: False)
+                self.assertEqual(username, expected)
+                self.assert_valid_username(username)
+
+    def test_long_local_parts_are_truncated_to_sixteen_characters(self):
+        username = build_username(
+            "abcdefghijklmnopqrst@gmail.com",
+            lambda _candidate: False,
+        )
+
+        self.assertEqual(username, "abcdefghijklmnop")
+        self.assert_valid_username(username)
+
+    def test_disallowed_characters_are_removed(self):
+        username = build_username("A!B#C$D@gmail.com", lambda _candidate: False)
+
+        self.assertEqual(username, "abcd")
+        self.assert_valid_username(username)
+
+    def test_repeated_collisions_get_incrementing_numeric_suffixes(self):
+        existing_names = {"operator", "operator1", "operator2"}
+        username = build_username(
+            "operator@gmail.com",
+            lambda candidate: candidate in existing_names,
+        )
+
+        self.assertEqual(username, "operator3")
+        self.assert_valid_username(username)
+
+    def test_reserved_names_get_a_suffix_and_continue_on_collision(self):
+        username = build_username(
+            "ADMIN@gmail.com",
+            lambda candidate: candidate == "admin1",
+        )
+
+        self.assertEqual(username, "admin2")
+        self.assert_valid_username(username)
+
+    def test_every_result_matches_the_username_contract(self):
+        emails = (
+            "valid.user@gmail.com",
+            "UPPER_CASE@gmail.com",
+            "dots-and-dashes+ignored@gmail.com",
+            "this-local-part-is-longer-than-sixteen@gmail.com",
+            "😺@gmail.com",
+        )
+
+        for email in emails:
+            with self.subTest(email=email):
+                self.assert_valid_username(
+                    build_username(email, lambda _candidate: False)
+                )
+
+
+@override_settings(GOOGLE_CLIENT_ID="test-google-client")
+class GoogleAuthEndpointTests(APITestCase):
+    def claims(self, **overrides):
+        claims = {
+            "sub": "google-sub-123",
+            "email": "new.user@gmail.com",
+            "email_verified": True,
+            "given_name": "Ada",
+        }
+        claims.update(overrides)
+        return claims
+
+    def post_google(self, data=None):
+        if data is None:
+            data = {"credential": "mock-credential"}
+        return self.client.post(reverse("google_login"), data, format="json")
+
+    def test_success_creates_user_and_returns_token(self):
+        with self.assertLogs("api.auth", level="INFO") as logs:
+            with patch(
+                "api.services.google_auth.verify_oauth2_token",
+                return_value=self.claims(),
+            ) as verifier:
+                response = self.post_google()
+
+        user = get_user_model().objects.get(email="new.user@gmail.com")
+        account = GoogleAccount.objects.get(user=user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(Token.objects.filter(key=response.data["token"], user=user).exists())
+        self.assertEqual(user.username, "new.user")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.has_usable_password())
+        self.assertEqual(user.first_name, "Ada")
+        self.assertEqual(account.google_sub, "google-sub-123")
+        self.assertEqual(response.data["user"]["name"], "Ada")
+        self.assertFalse(response.data["user"]["can_manage_alerts"])
+        self.assertEqual(verifier.call_args.args[0], "mock-credential")
+        self.assertEqual(verifier.call_args.args[2], "test-google-client")
+        self.assertEqual(verifier.call_args.kwargs, {"clock_skew_in_seconds": 10})
+        self.assertIn(user.username, logs.output[0])
+        self.assertNotIn(response.data["token"], logs.output[0])
+
+    def test_second_access_reuses_the_user_and_token(self):
+        with patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value=self.claims(),
+        ) as verifier:
+            first = self.post_google()
+            second = self.post_google()
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data["token"], second.data["token"])
+        self.assertEqual(get_user_model().objects.count(), 1)
+        self.assertEqual(GoogleAccount.objects.count(), 1)
+        self.assertEqual(verifier.call_count, 2)
+
+    def test_existing_email_is_linked_without_changing_its_password(self):
+        user = get_user_model().objects.create_user(
+            username="legacy-user",
+            email="legacy@gmail.com",
+        )
+        user.set_password("keep-existing-password")
+        user.save(update_fields=["password"])
+
+        with patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value=self.claims(
+                email="LEGACY@GMAIL.COM",
+                sub="linked-google-sub",
+            ),
+        ):
+            response = self.post_google()
+
+        user.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["username"], user.username)
+        self.assertTrue(user.check_password("keep-existing-password"))
+        self.assertEqual(GoogleAccount.objects.get(user=user).google_sub, "linked-google-sub")
+
+    def test_non_gmail_or_unverified_accounts_are_rejected(self):
+        invalid_claims = (
+            self.claims(email="person@example.com"),
+            self.claims(email_verified=False),
+        )
+
+        for claims in invalid_claims:
+            with self.subTest(claims=claims):
+                with patch(
+                    "api.services.google_auth.verify_oauth2_token",
+                    return_value=claims,
+                ):
+                    response = self.post_google()
+
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(
+                    response.data["errors"]["detail"],
+                    "Solo se admiten cuentas @gmail.com verificadas por Google.",
+                )
+
+    def test_invalid_credentials_have_the_same_error_without_logging_credentials(self):
+        with self.assertLogs("api.auth", level="WARNING") as logs:
+            with patch(
+                "api.services.google_auth.verify_oauth2_token",
+                side_effect=[
+                    ValueError("private-credential-one"),
+                    ValueError("private-credential-two"),
+                ],
+            ):
+                first = self.post_google({"credential": "private-credential-one"})
+                second = self.post_google({"credential": "private-credential-two"})
+
+        expected = "No se pudo verificar la cuenta de Google."
+        self.assertEqual(first.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(first.data["errors"]["detail"], expected)
+        self.assertEqual(second.data["errors"]["detail"], expected)
+        self.assertIn("ValueError", logs.output[0])
+        self.assertNotIn("private-credential-one", "\n".join(logs.output))
+        self.assertNotIn("private-credential-two", "\n".join(logs.output))
+
+    def test_missing_nontext_and_oversized_credentials_skip_google_verification(self):
+        with patch("api.services.google_auth.verify_oauth2_token") as verifier:
+            responses = [
+                self.post_google({}),
+                self.post_google({"credential": 42}),
+                self.post_google({"credential": "x" * 5000}),
+            ]
+
+        self.assertEqual(
+            [response.status_code for response in responses],
+            [status.HTTP_400_BAD_REQUEST] * 3,
+        )
+        verifier.assert_not_called()
+
+    @override_settings(GOOGLE_CLIENT_ID="")
+    def test_empty_client_id_returns_service_unavailable(self):
+        with patch("api.services.google_auth.verify_oauth2_token") as verifier:
+            response = self.post_google()
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(
+            response.data,
+            {
+                "status": "error",
+                "errors": {"detail": "El acceso con Google no está configurado."},
+            },
+        )
+        verifier.assert_not_called()
+
+    def test_inactive_account_cannot_get_a_token(self):
+        user = get_user_model().objects.create_user(
+            username="inactive-user",
+            email="new.user@gmail.com",
+            is_active=False,
+        )
+
+        with patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value=self.claims(),
+        ):
+            response = self.post_google()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["errors"]["detail"],
+            "Tu cuenta está desactivada.",
+        )
+        self.assertFalse(Token.objects.filter(user=user).exists())
+
+    def test_me_requires_token_and_returns_the_user_profile(self):
+        user = get_user_model().objects.create_user(
+            username="profile-user",
+            email="profile@gmail.com",
+        )
+        response = self.client.get(reverse("auth_me"))
+        token = Token.objects.create(user=user)
+        authenticated = self.client.get(
+            reverse("auth_me"),
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(authenticated.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            authenticated.data,
+            {
+                "username": "profile-user",
+                "email": "profile@gmail.com",
+                "name": "profile-user",
+                "can_manage_alerts": False,
+            },
+        )
+
+    def test_logout_deletes_token_and_rejects_its_next_use(self):
+        user = get_user_model().objects.create_user(
+            username="logout-user",
+            email="logout@gmail.com",
+        )
+        token = Token.objects.create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+        logout = self.client.post(reverse("auth_logout"))
+        after_logout = self.client.get(reverse("auth_me"))
+
+        self.assertEqual(logout.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Token.objects.filter(user=user).exists())
+        self.assertEqual(after_logout.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class BuildUsernameEdgeCaseTests(SimpleTestCase):
+    def test_reserved_names_are_avoided(self):
+        for reserved in ("admin", "root", "administrator", "pyroguard", "soporte"):
+            with self.subTest(reserved=reserved):
+                username = build_username(
+                    f"{reserved}@gmail.com",
+                    lambda _candidate: False,
+                )
+                self.assertNotEqual(username, reserved)
+                self.assertRegex(username, r"^[a-z0-9_.-]{4,16}$")
 
 
 class AIServiceSettingsTests(SimpleTestCase):
@@ -1584,11 +1953,11 @@ class ThrottlingTests(APITestCase):
         self.addCleanup(cache.clear)
         self.node = Node.objects.create(node_id="NODE-001")
 
-    def limit(self, read="1000/min", ingest="1000/min", login="1000/min"):
+    def limit(self, read="1000/min", ingest="1000/min", google_login="1000/min"):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": ingest, "login": login},
+            {"read": read, "ingest": ingest, "google_login": google_login},
         )
 
     def post_reading(self):
@@ -1665,62 +2034,72 @@ class ThrottlingTests(APITestCase):
             [status.HTTP_401_UNAUTHORIZED] * 3,
         )
 
-    def login(self, password="mala"):
-        return self.client.post(
-            reverse("api_token_auth"),
-            {"username": "operador", "password": password},
-            format="json",
+    def google_login(self, **headers):
+        with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
+            with patch(
+                "api.services.google_auth.verify_oauth2_token",
+                return_value={
+                    "sub": "throttle-user",
+                    "email": "operador@gmail.com",
+                    "email_verified": True,
+                },
+            ):
+                return self.client.post(
+                    reverse("google_login"),
+                    {"credential": "mock-credential"},
+                    format="json",
+                    **headers,
+                )
+
+    def test_google_login_attempts_are_limited_per_ip(self):
+        with self.limit(google_login="3/min"):
+            statuses = [self.google_login().status_code for _ in range(4)]
+
+        self.assertEqual(
+            statuses,
+            [status.HTTP_200_OK, status.HTTP_200_OK, status.HTTP_200_OK,
+             status.HTTP_429_TOO_MANY_REQUESTS],
         )
 
-    def test_login_attempts_are_limited_per_ip(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="3/min"):
-            statuses = [self.login().status_code for _ in range(4)]
-
-        self.assertEqual(statuses, [400, 400, 400, 429])
-
-    def test_correct_password_is_also_blocked_once_the_limit_is_reached(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="2/min"):
-            self.login()
-            self.login()
-            response = self.login(password="buena")
+    def test_valid_google_login_is_blocked_once_the_limit_is_reached(self):
+        with self.limit(google_login="2/min"):
+            self.google_login()
+            self.google_login()
+            response = self.google_login()
 
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertGreater(int(response["Retry-After"]), 0)
 
-    def test_login_limit_does_not_consume_the_read_limit(self):
-        with self.limit(read="1/min", login="5/min"):
+    def test_google_login_limit_does_not_consume_the_read_limit(self):
+        with self.limit(read="1/min", google_login="5/min"):
             for _ in range(3):
-                self.login()
+                self.assertEqual(self.google_login().status_code, status.HTTP_200_OK)
             response = self.client.get(reverse("dashboard_summary"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_exhausted_login_limit_does_not_block_reads(self):
-        with self.limit(read="5/min", login="1/min"):
-            self.login()
-            blocked = self.login()
+    def test_exhausted_google_login_limit_does_not_block_reads(self):
+        with self.limit(read="5/min", google_login="1/min"):
+            self.assertEqual(self.google_login().status_code, status.HTTP_200_OK)
+            blocked = self.google_login()
             response = self.client.get(reverse("dashboard_summary"))
 
         self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_login_still_returns_a_token_within_the_limit(self):
-        get_user_model().objects.create_user("operador", password="buena")
-
-        with self.limit(login="3/min"):
-            response = self.login(password="buena")
+    def test_google_login_still_returns_a_token_within_the_limit(self):
+        with self.limit(google_login="3/min"):
+            response = self.google_login()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
+        self.assertTrue(Token.objects.filter(key=response.data["token"]).exists())
 
     def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
-        self.assertEqual(set(rates), {"read", "ingest", "login"})
+        self.assertEqual(set(rates), {"read", "ingest", "google_login"})
+        self.assertEqual(rates["google_login"], "10/min")
         self.assertIn(
             "api.throttles.ReadThrottle",
             settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],
@@ -1820,13 +2199,21 @@ class ReadAccessTests(APITestCase):
             with self.subTest(endpoint=name):
                 self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
 
-    @override_settings(PUBLIC_READ_ACCESS=False)
-    def test_closed_reads_do_not_block_the_login(self):
-        response = self.client.post(
-            reverse("api_token_auth"),
-            {"username": "operador", "password": "x"},
-            format="json",
-        )
+    @override_settings(PUBLIC_READ_ACCESS=False, GOOGLE_CLIENT_ID="test-google-client")
+    def test_closed_reads_do_not_block_google_login(self):
+        with patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value={
+                "sub": "public-login-user",
+                "email": "operador@gmail.com",
+                "email_verified": True,
+            },
+        ):
+            response = self.client.post(
+                reverse("google_login"),
+                {"credential": "mock-credential"},
+                format="json",
+            )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("token", response.data)
@@ -2063,7 +2450,7 @@ class ClientIPThrottlingTests(APITestCase):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": "1000/min", "login": "1000/min"},
+            {"read": read, "ingest": "1000/min", "google_login": "1000/min"},
         )
 
     def get(self, **headers):
@@ -2125,26 +2512,35 @@ class ClientIPThrottlingTests(APITestCase):
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_200_OK)
 
-    def test_ingest_and_login_quotas_use_the_same_client_ip(self):
-        user_model = get_user_model()
-        user_model.objects.create_user("operador", password="buena")
+    def test_ingest_and_google_login_quotas_use_the_same_client_ip(self):
         with patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": "1000/min", "ingest": "1000/min", "login": "1/min"},
+            {"read": "1000/min", "ingest": "1000/min", "google_login": "1/min"},
         ):
-            statuses = [
-                self.client.post(
-                    reverse("api_token_auth"),
-                    {"username": "operador", "password": "mala"},
-                    format="json",
-                    HTTP_CF_CONNECTING_IP=ip,
-                ).status_code
-                for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
-            ]
+            with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
+                with patch(
+                    "api.services.google_auth.verify_oauth2_token",
+                    return_value={
+                        "sub": "ip-test-user",
+                        "email": "operador@gmail.com",
+                        "email_verified": True,
+                    },
+                ):
+                    statuses = [
+                        self.client.post(
+                            reverse("google_login"),
+                            {"credential": "mock-credential"},
+                            format="json",
+                            HTTP_CF_CONNECTING_IP=ip,
+                        ).status_code
+                        for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
+                    ]
 
-        self.assertEqual(statuses, [400, 429, 400])
-
+        self.assertEqual(
+            statuses,
+            [status.HTTP_200_OK, status.HTTP_429_TOO_MANY_REQUESTS, status.HTTP_200_OK],
+        )
 
 class ClientIPSettingsTests(SimpleTestCase):
     def test_header_is_optional(self):

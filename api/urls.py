@@ -1,17 +1,18 @@
 from django.urls import include, path
-from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.routers import DefaultRouter
 
-from .throttles import LoginThrottle
 from .views import (
     AcknowledgeAlertView,
     ActiveAlertListView,
+    AuthLogoutView,
+    AuthMeView,
     AlertDetailView,
     AlertListView,
     CloseAlertView,
     DashboardSummaryView,
     DashboardTopRiskView,
     DashboardZonesView,
+    GoogleLoginView,
     HealthView,
     NodeLinkDetailView,
     NodeLinksView,
@@ -35,11 +36,9 @@ urlpatterns = [
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard_summary"),
     path("dashboard/zones/", DashboardZonesView.as_view(), name="dashboard_zones"),
     path("dashboard/top-risk/", DashboardTopRiskView.as_view(), name="dashboard_top_risk"),
-    path(
-        "auth/login/",
-        ObtainAuthToken.as_view(throttle_classes=[LoginThrottle]),
-        name="api_token_auth",
-    ),
+    path("auth/google/", GoogleLoginView.as_view(), name="google_login"),
+    path("auth/me/", AuthMeView.as_view(), name="auth_me"),
+    path("auth/logout/", AuthLogoutView.as_view(), name="auth_logout"),
     path("nodes/<str:node_id>/neighbors/", NodeNeighborsView.as_view(), name="node_neighbors"),
     path("nodes/<str:node_id>/links/", NodeLinksView.as_view(), name="node_links"),
     path(

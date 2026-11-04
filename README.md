@@ -159,6 +159,7 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `DEBUG` | Activa modo de desarrollo | `True` |
 | `DATABASE_URL` | URL PostgreSQL; vacía usa SQLite | Vacía |
 | `INGEST_API_KEY` | Clave del header `X-API-Key` para ingesta | Definir una clave local propia |
+| `GOOGLE_CLIENT_ID` | Client ID web de Google para el acceso a la API; vacío deshabilita el endpoint | Vacía |
 | `NODE_OFFLINE_THRESHOLD_SECONDS` | Segundos sin comunicación para marcar OFFLINE | `300` |
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
@@ -186,7 +187,6 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
-| `THROTTLE_LOGIN_RATE` | Límite de intentos de `POST /auth/login/` por IP, con el mismo formato | `10/min` |
 | `CLIENT_IP_HEADER` | Cabecera con la IP del cliente que escribe un proxy de confianza (en Render, `CF-Connecting-IP`) | Vacío |
 | `NUM_PROXIES` | Saltos de proxy delante de la app, si no se usa `CLIENT_IP_HEADER` | Vacío |
 | `EXTRA_ALLOWED_HOSTS` | Hosts adicionales separados por comas | Vacío |
@@ -198,8 +198,9 @@ por `.gitignore`; `.env.example` contiene nombres de variables y placeholders.
 ## Endpoints
 
 La base común es `http://localhost:8000/api`. Las consultas GET son públicas por
-defecto (ver «Acceso de lectura»). Las escrituras de nodos y transiciones de
-alertas requieren autenticación DRF.
+defecto (ver «Acceso de lectura»). Las escrituras de nodos requieren
+autenticación DRF; reconocer o cerrar alertas requiere ser staff, superusuario
+o miembro del grupo `Operadores`.
 La ingesta POST requiere `X-API-Key`, incluso si el cliente también tiene sesión
 o token; con `DEBUG=True` y `INGEST_API_KEY` vacía se permite para desarrollo y
 se registra una advertencia.
@@ -225,8 +226,10 @@ se registra una advertencia.
 | `GET /alerts/` | Historial de alertas; filtros `status`, `level`, `node_id`, `from`, `to`, `limit` (100 por defecto) y `offset` |
 | `GET /alerts/active/` | Alertas activas por urgencia: `FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero |
 | `GET /alerts/{id}/` | Detalle de una alerta |
-| `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar el estado de una alerta (autenticado; `409` si la transición no es válida) |
-| `POST /auth/login/` | Obtener token de DRF (con límite de intentos) |
+| `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar el estado de una alerta (staff, superusuario o `Operadores`; `409` si la transición no es válida) |
+| `POST /auth/google/` | Intercambiar una credencial de Google verificada por un token DRF |
+| `GET /auth/me/` | Consultar el usuario asociado al token |
+| `POST /auth/logout/` | Invalidar el token actual |
 | `GET /schema/`, `GET /docs/` | Esquema OpenAPI (YAML o `?format=json`) e interfaz Swagger |
 
 Todas las respuestas llevan `X-Request-ID`; las listas paginadas devuelven `X-Total-Count`.
@@ -240,16 +243,55 @@ curl -X POST http://localhost:8000/api/readings/ \
 	-d '{"node_id":"SIM-001","temperature":24.5,"humidity":48,"smoke":18,"gas":3.2,"flame":false,"timestamp":"2026-10-17T15:30:00Z"}'
 ```
 
-Token para operaciones autenticadas:
+Acceso con Google y token para operaciones autenticadas:
 
 ```bash
-curl -X POST http://localhost:8000/api/auth/login/ \
+curl -X POST http://localhost:8000/api/auth/google/ \
 	-H "Content-Type: application/json" \
-	-d '{"username":"USUARIO","password":"CONTRASENA"}'
+	-d '{"credential":"CREDENCIAL_ID_TOKEN_DE_GOOGLE"}'
 
 curl -H "Authorization: Token TOKEN_RECIBIDO" \
-	http://localhost:8000/api/nodes/
+	http://localhost:8000/api/auth/me/
+
+curl -X POST -H "Authorization: Token TOKEN_RECIBIDO" \
+	http://localhost:8000/api/auth/logout/
 ```
+
+La credencial se obtiene del flujo de Google Identity Services del cliente. La
+API no ofrece registro con formulario ni inicio de sesión con contraseña; el
+acceso a `/admin/` de Django conserva su sesión y contraseña habituales.
+
+## Acceso con Google
+
+Configura `GOOGLE_CLIENT_ID` con un OAuth Client ID de tipo aplicación web:
+
+1. En Google Cloud Console, crea o selecciona un proyecto.
+2. Configura la pantalla de consentimiento OAuth como **Externa**. Mientras la
+   aplicación esté en pruebas, agrega las cuentas necesarias en **Usuarios de
+   prueba**.
+3. En **Credenciales**, crea un **ID de cliente de OAuth** para una
+   **Aplicación web**.
+4. En **Orígenes autorizados de JavaScript**, agrega `http://localhost:4200`
+   para desarrollo y el origen exacto de producción, por ejemplo
+   `https://mi-dashboard.vercel.app` (sin barra final).
+5. Copia el Client ID a la variable `GOOGLE_CLIENT_ID` del entorno del backend.
+   El Client ID es público. **No se usa ni se guarda un Client Secret**.
+
+Solo se aceptan cuentas `@gmail.com` con `email_verified` confirmado por
+Google. Si `GOOGLE_CLIENT_ID` está vacío, `POST /auth/google/` responde `503`.
+El endpoint limita el acceso a **10 intentos por minuto y por IP** y responde
+`429` con `Retry-After` al superar el cupo.
+
+Los dominios de vista previa de Vercel suelen ser efímeros y Google no admite
+comodines en los orígenes autorizados: agrega cada origen exacto que necesites o
+usa el dominio estable de producción para probar el acceso. El origen local
+`http://localhost:4200` se configura por separado.
+
+El primer acceso con Google crea la cuenta normal del usuario. Para permitirle
+reconocer y cerrar alertas, inicia sesión en `/admin/` con un administrador de
+Django, abre **Usuarios**, selecciona esa cuenta y asígnala al grupo
+**Operadores**. La migración crea el grupo automáticamente. El usuario también
+puede gestionar alertas si es `is_staff` o superusuario.
 
 Ejemplo de status y filtros de lectura:
 
@@ -447,23 +489,25 @@ Qué hay que saber:
 | Endpoint | Lectura (GET) | Escritura |
 | --- | --- | --- |
 | `/readings/`, `/dashboard/summary/`, `/nodes/…`, `/alerts/…` | Pública | Nodos y transiciones de alertas: token. Lecturas: `X-API-Key` |
-| `/auth/login/` | — | Siempre abierto, para poder obtener el token |
+| `/auth/google/` | — | Siempre abierto; requiere una credencial Google válida |
+| `/auth/me/` | Token | — |
+| `/auth/logout/` | — | Token; elimina el token actual |
 
 Hoy son públicas porque el dashboard aún no tiene inicio de sesión. Con
 `PUBLIC_READ_ACCESS=False` todas las consultas GET responden HTTP 401 sin
-`Authorization: Token …`, sin tocar código. La ingesta con `X-API-Key` y el login
-no cambian. Las lecturas muestran estado de nodos y alertas, por lo que conviene
-cerrarlas en cuanto el frontend pueda enviar el token.
+`Authorization: Token …`, sin tocar código; `/auth/me/` siempre exige token.
+La ingesta con `X-API-Key` y el acceso con Google no cambian. Las lecturas
+muestran estado de nodos y alertas, por lo que conviene cerrarlas en cuanto el
+frontend pueda enviar el token.
 
 ## Límite de peticiones
 
 Cada IP tiene tres cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
 compartido por todos los endpoints de lectura), la ingesta POST de lecturas
 (`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red) y
-los intentos de login (`THROTTLE_LOGIN_RATE`, estricto para frenar la fuerza
-bruta de contraseñas). Al superarlos la API responde HTTP 429 con la cabecera
-`Retry-After`. Las peticiones sin credenciales válidas se rechazan antes de
-contar contra el cupo de ingesta.
+el acceso con Google (10/minuto, fijo). Al superarlos la API responde HTTP 429
+con la cabecera `Retry-After`. Las credenciales de ingesta no válidas se
+rechazan antes de contar contra su cupo.
 
 Los contadores viven en la memoria de cada proceso, así que con varios workers
 de gunicorn el límite efectivo se multiplica por el número de workers.
@@ -702,7 +746,7 @@ porque los Cron Jobs de Render son de pago. Sin ellas la API funciona, pero no s
 	 con `EXTRA_ALLOWED_HOSTS` y orígenes con `EXTRA_CORS_ORIGINS` cuando proceda.
 	 Define también `CLIENT_IP_HEADER=CF-Connecting-IP`: sin ella el límite de
 	 peticiones vería a todos los clientes con la IP del proxy de Render. Ajusta
-	 `THROTTLE_READ_RATE`, `THROTTLE_INGEST_RATE` y `THROTTLE_LOGIN_RATE` si hace
+	 `THROTTLE_READ_RATE` y `THROTTLE_INGEST_RATE` si hace
 	 falta (ver «Límite de peticiones»).
 5. Las migraciones se aplican en cada despliegue con `migrate --noinput` (en el
 	 build command y en el `Procfile`); son idempotentes. Con una sola instancia no

@@ -46,10 +46,10 @@ class ReadThrottle(_IPMethodThrottle):
     safe_methods = True
 
 
-class LoginThrottle(_IPMethodThrottle):
-    """Intentos de inicio de sesión; frena la fuerza bruta de contraseñas."""
+class GoogleLoginThrottle(_IPMethodThrottle):
+    """Limita por IP los intentos de acceso con Google."""
 
-    scope = "login"
+    scope = "google_login"
     safe_methods = False
 
 

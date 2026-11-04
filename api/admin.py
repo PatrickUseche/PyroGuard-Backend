@@ -4,7 +4,16 @@ from django.conf import settings
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import Alert, Node, NodeLink, NotificationOutbox, ReadingHourly, RiskAssessment, SensorReading
+from .models import (
+    Alert,
+    GoogleAccount,
+    Node,
+    NodeLink,
+    NotificationOutbox,
+    ReadingHourly,
+    RiskAssessment,
+    SensorReading,
+)
 
 
 class ConnectionStatusFilter(admin.SimpleListFilter):
@@ -122,3 +131,9 @@ class NotificationOutboxAdmin(admin.ModelAdmin):
     list_display = ("subject", "kind", "priority", "status", "attempts", "created_at", "sent_at")
     list_filter = ("status", "kind")
     search_fields = ("subject", "node__node_id")
+
+
+@admin.register(GoogleAccount)
+class GoogleAccountAdmin(admin.ModelAdmin):
+    list_display = ("user", "google_sub", "created_at")
+    search_fields = ("user__username", "user__email", "google_sub")

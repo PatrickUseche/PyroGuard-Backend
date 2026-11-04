@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 
 from django.conf import settings
 from django.db import transaction
@@ -6,7 +7,9 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import ParseError
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import ParseError, Throttled
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,8 +17,21 @@ from rest_framework.viewsets import ModelViewSet
 
 from . import openapi as o
 from .models import Alert, Node, NodeLink, SensorReading
-from .permissions import IsAuthenticatedOrIngestAPIKey, IsAuthenticatedOrPublicRead
-from .serializers import AlertSerializer, NodeSerializer, SensorReadingSerializer
+from .permissions import (
+    CanManageAlerts,
+    IsAuthenticatedOrIngestAPIKey,
+    IsAuthenticatedOrPublicRead,
+    can_manage_alerts,
+)
+from .serializers import (
+    AlertSerializer,
+    GoogleAuthResponseSerializer,
+    GoogleCredentialSerializer,
+    GoogleUserSerializer,
+    NodeSerializer,
+    SensorReadingSerializer,
+)
+from .services import google_auth
 from .services.alert_ordering import order_by_urgency
 from .services.health import get_health
 from .services.ingestion import DuplicateReadingError, ingest_reading
@@ -33,9 +49,153 @@ from .services.reading_queries import filter_readings, parse_datetime_parameter
 from .services.risk_zones import get_risk_zones
 from .services.series import merge_sorted
 from .services.series_queries import load_series, parse_series_query
-from .throttles import IngestThrottle, ReadThrottle
+from .throttles import GoogleLoginThrottle, IngestThrottle, ReadThrottle
 
 logger = logging.getLogger("api.readings")
+auth_logger = logging.getLogger("api.auth")
+
+
+def _auth_error(detail, response_status):
+    return Response(
+        {"status": "error", "errors": {"detail": detail}},
+        status=response_status,
+    )
+
+
+def _user_summary(user):
+    return {
+        "username": user.get_username(),
+        "email": user.email,
+        "name": user.first_name or user.get_username(),
+        "can_manage_alerts": can_manage_alerts(user),
+    }
+
+
+class GoogleLoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [GoogleLoginThrottle]
+
+    @extend_schema(
+        summary="Iniciar sesión con Google",
+        request=GoogleCredentialSerializer,
+        responses={
+            200: GoogleAuthResponseSerializer,
+            400: o.ErrorSerializer,
+            403: o.ErrorSerializer,
+            429: o.ErrorSerializer,
+            503: o.ErrorSerializer,
+        },
+    )
+    def post(self, request):
+        if not settings.GOOGLE_CLIENT_ID:
+            return _auth_error(
+                "El acceso con Google no está configurado.",
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not isinstance(request.data, Mapping):
+            return _auth_error(
+                "El cuerpo de la solicitud debe ser un objeto.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        credential_serializer = GoogleCredentialSerializer(data=request.data)
+        if not credential_serializer.is_valid():
+            return Response(
+                {"status": "error", "errors": credential_serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        credential = credential_serializer.validated_data["credential"]
+        try:
+            claims = google_auth.verify_credential(
+                credential,
+                settings.GOOGLE_CLIENT_ID,
+            )
+        except ValueError as exc:
+            auth_logger.warning(
+                "No se pudo verificar la cuenta de Google. Tipo de excepción: %s",
+                type(exc).__name__,
+            )
+            return _auth_error(
+                "No se pudo verificar la cuenta de Google.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(claims, dict):
+            return _auth_error(
+                "No se pudo verificar la cuenta de Google.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        email_claim = claims.get("email")
+        email = email_claim.lower() if isinstance(email_claim, str) else ""
+        if claims.get("email_verified") is not True or not email.endswith("@gmail.com"):
+            return _auth_error(
+                "Solo se admiten cuentas @gmail.com verificadas por Google.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        google_sub = claims.get("sub")
+        if not isinstance(google_sub, str) or not google_sub or len(google_sub) > 255:
+            return _auth_error(
+                "No se pudo verificar la cuenta de Google.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = google_auth.get_or_create_user(
+            email,
+            google_sub,
+            claims.get("given_name"),
+        )
+        if not user.is_active:
+            return _auth_error(
+                "Tu cuenta está desactivada.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        token, _ = Token.objects.get_or_create(user=user)
+        auth_logger.info(
+            "Acceso con Google concedido al usuario %s.",
+            user.get_username(),
+        )
+        return Response(
+            {"token": token.key, "user": _user_summary(user)},
+            status=status.HTTP_200_OK,
+        )
+
+    def throttled(self, request, wait):
+        raise Throttled(
+            wait,
+            detail="Has superado el límite de acceso con Google. Intenta de nuevo más tarde.",
+        )
+
+
+class AuthMeView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Consultar el usuario autenticado",
+        responses={200: GoogleUserSerializer, 401: o.ErrorSerializer},
+    )
+    def get(self, request):
+        return Response(_user_summary(request.user))
+
+
+class AuthLogoutView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Cerrar sesión e invalidar el token",
+        request=None,
+        responses={204: None, 401: o.ErrorSerializer},
+    )
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NodeViewSet(ModelViewSet):
@@ -533,7 +693,7 @@ class AlertDetailView(APIView):
 
 
 class AlertTransitionView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanManageAlerts]
     target_status = None
 
     def post(self, request, alert_id):
@@ -573,7 +733,8 @@ class AlertTransitionView(APIView):
 
 @extend_schema(
     summary="Reconocer una alerta",
-    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    description="Requiere ser staff, superusuario o pertenecer a «Operadores». "
+    "Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
     request=None,
     responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
 )
@@ -583,7 +744,8 @@ class AcknowledgeAlertView(AlertTransitionView):
 
 @extend_schema(
     summary="Cerrar una alerta",
-    description="Requiere autenticación. Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
+    description="Requiere ser staff, superusuario o pertenecer a «Operadores». "
+    "Transiciones válidas: ACTIVE → ACKNOWLEDGED → CLOSED y ACTIVE → CLOSED.",
     request=None,
     responses={200: AlertSerializer, 404: o.ErrorSerializer, 409: o.ErrorSerializer},
 )

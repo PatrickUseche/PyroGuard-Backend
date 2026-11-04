@@ -23,7 +23,7 @@ from .models import Node, RiskAssessment, SensorReading
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 
