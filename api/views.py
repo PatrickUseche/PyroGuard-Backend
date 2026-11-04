@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import ParseError, Throttled
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -25,6 +26,7 @@ from .serializers import (
     AlertSerializer,
     GoogleAuthResponseSerializer,
     GoogleCredentialSerializer,
+    GoogleUserSerializer,
     NodeSerializer,
     SensorReadingSerializer,
 )
@@ -167,6 +169,32 @@ class GoogleLoginView(APIView):
             wait,
             detail="Has superado el límite de acceso con Google. Intenta de nuevo más tarde.",
         )
+
+
+class AuthMeView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Consultar el usuario autenticado",
+        responses={200: GoogleUserSerializer, 401: o.ErrorSerializer},
+    )
+    def get(self, request):
+        return Response(_user_summary(request.user))
+
+
+class AuthLogoutView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Cerrar sesión e invalidar el token",
+        request=None,
+        responses={204: None, 401: o.ErrorSerializer},
+    )
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NodeViewSet(ModelViewSet):
