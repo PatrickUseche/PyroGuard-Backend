@@ -186,7 +186,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 ## Fase 9 — Acceso con Google
 
 - [x] feat(auth): variable `GOOGLE_CLIENT_ID`, dependencia `google-auth` y modelo `GoogleAccount` [9.1]
-- [ ] feat(auth): generación de nombre de usuario válido (4 a 16 caracteres) a partir del correo [9.2]
+- [x] feat(auth): generación de nombre de usuario válido (4 a 16 caracteres) a partir del correo [9.2]
 - [ ] feat(auth): `POST /api/auth/google/` que verifica la credencial y devuelve el token [9.3]
 - [ ] feat(auth): `GET /api/auth/me/` y `POST /api/auth/logout/` que invalida el token [9.4]
 - [ ] feat(auth): grupo «Operadores» y permiso para reconocer y cerrar alertas [9.5]
