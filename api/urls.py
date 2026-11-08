@@ -4,10 +4,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AcknowledgeAlertView,
     ActiveAlertListView,
-    AuthLogoutView,
-    AuthMeView,
     AlertDetailView,
     AlertListView,
+    AuthLogoutView,
+    AuthMeView,
     CloseAlertView,
     DashboardSummaryView,
     DashboardTopRiskView,

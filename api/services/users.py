@@ -1,7 +1,6 @@
 import re
 from collections.abc import Callable
 
-
 _RESERVED_USERNAMES = {"admin", "root", "administrator", "pyroguard", "soporte"}
 
 
