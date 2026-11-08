@@ -62,7 +62,9 @@ class OpenApiSchemaTests(TestCase):
             "/api/alerts/{alert_id}/",
             "/api/alerts/{alert_id}/acknowledge/",
             "/api/alerts/{alert_id}/close/",
-            "/api/auth/login/",
+            "/api/auth/google/",
+            "/api/auth/me/",
+            "/api/auth/logout/",
         }
 
         self.assertTrue(expected <= set(self.schema["paths"]), expected - set(self.schema["paths"]))

@@ -3,6 +3,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -19,7 +20,7 @@ from .services.node_status_cache import NodeStatusCache, node_status_cache
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "login": None},
+    {"read": None, "ingest": None, "google_login": None},
 )
 
 
@@ -61,6 +62,7 @@ class CacheTestCase(APITestCase):
 
     def login(self):
         user = get_user_model().objects.create_user("operador", password="clave-segura-1")
+        user.groups.add(Group.objects.get(name="Operadores"))
         token = Token.objects.create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
 

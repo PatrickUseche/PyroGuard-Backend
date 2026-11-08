@@ -284,7 +284,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "read": _env_rate("THROTTLE_READ_RATE", "120/min"),
         "ingest": _env_rate("THROTTLE_INGEST_RATE", "300/min"),
-        "login": _env_rate("THROTTLE_LOGIN_RATE", "10/min"),
+        "google_login": "10/min",
     },
     # Saltos de proxy delante de la app; sin valor, DRF toma todo X-Forwarded-For.
     "NUM_PROXIES": _env_non_negative_int("NUM_PROXIES"),
@@ -296,6 +296,7 @@ REST_FRAMEWORK = {
 CLIENT_IP_HEADER = _env_header_name("CLIENT_IP_HEADER")
 
 INGEST_API_KEY = os.getenv("INGEST_API_KEY", "")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 NODE_OFFLINE_THRESHOLD_SECONDS = int(
     os.getenv("NODE_OFFLINE_THRESHOLD_SECONDS", "300")
 )
