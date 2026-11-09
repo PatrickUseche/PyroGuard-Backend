@@ -160,6 +160,7 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `DATABASE_URL` | URL PostgreSQL; vacía usa SQLite | Vacía |
 | `INGEST_API_KEY` | Clave del header `X-API-Key` para ingesta | Definir una clave local propia |
 | `GOOGLE_CLIENT_ID` | Client ID web de Google para el acceso a la API; vacío deshabilita el endpoint | Vacía |
+| `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET de nodos, lecturas, alertas y dashboard requieren token | `True` |
 | `NODE_OFFLINE_THRESHOLD_SECONDS` | Segundos sin comunicación para marcar OFFLINE | `300` |
 | `ALERT_ON_WARNING` | Habilita alertas WARNING | `False` |
 | `AUTO_REGISTER_NODES` | Crea nodos desconocidos durante la ingesta | `False` |
@@ -184,7 +185,6 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
 | `LOG_FORMAT` | Formato de los logs: `text` o `json` (una línea JSON por registro, con `request_id`) | `text` |
-| `PUBLIC_READ_ACCESS` | Si es `False`, las consultas GET también exigen token | `True` |
 | `THROTTLE_READ_RATE` | Límite de consultas GET por IP (`N/sec`, `N/min`, `N/hour` o `N/day`) | `120/min` |
 | `THROTTLE_INGEST_RATE` | Límite de ingesta POST de lecturas por IP, con el mismo formato | `300/min` |
 | `CLIENT_IP_HEADER` | Cabecera con la IP del cliente que escribe un proxy de confianza (en Render, `CF-Connecting-IP`) | Vacío |
@@ -227,7 +227,8 @@ se registra una advertencia.
 | `GET /alerts/active/` | Alertas activas por urgencia: `FIRE` antes que `WARNING` y, a igual nivel, la más antigua primero |
 | `GET /alerts/{id}/` | Detalle de una alerta |
 | `POST /alerts/{id}/acknowledge/`, `POST /alerts/{id}/close/` | Cambiar el estado de una alerta (staff, superusuario o `Operadores`; `409` si la transición no es válida) |
-| `POST /auth/google/` | Intercambiar una credencial de Google verificada por un token DRF |
+| `POST /auth/google/` | Acceso para una cuenta existente; para una cuenta nueva responde `404 registration_required` con username sugerido |
+| `POST /auth/google/register/` | Registrar una cuenta nueva con la credencial Google y el username elegido; `201` nueva, `200` si ya existe |
 | `GET /auth/me/` | Consultar el usuario asociado al token |
 | `POST /auth/logout/` | Invalidar el token actual |
 | `GET /schema/`, `GET /docs/` | Esquema OpenAPI (YAML o `?format=json`) e interfaz Swagger |
@@ -250,6 +251,12 @@ curl -X POST http://localhost:8000/api/auth/google/ \
 	-H "Content-Type: application/json" \
 	-d '{"credential":"CREDENCIAL_ID_TOKEN_DE_GOOGLE"}'
 
+# Si la respuesta es 404 con code "registration_required", elige un username
+# y registra la cuenta usando la misma credencial:
+curl -X POST http://localhost:8000/api/auth/google/register/ \
+	-H "Content-Type: application/json" \
+	-d '{"credential":"CREDENCIAL_ID_TOKEN_DE_GOOGLE","username":"AdaUser"}'
+
 curl -H "Authorization: Token TOKEN_RECIBIDO" \
 	http://localhost:8000/api/auth/me/
 
@@ -257,9 +264,17 @@ curl -X POST -H "Authorization: Token TOKEN_RECIBIDO" \
 	http://localhost:8000/api/auth/logout/
 ```
 
-La credencial se obtiene del flujo de Google Identity Services del cliente. La
-API no ofrece registro con formulario ni inicio de sesión con contraseña; el
-acceso a `/admin/` de Django conserva su sesión y contraseña habituales.
+La credencial se obtiene del flujo de Google Identity Services del cliente. Si
+la cuenta aún no existe, `POST /auth/google/` no crea datos y responde
+`404 registration_required`, incluyendo `email`, `name` y `suggested_username`;
+el cliente pide un username y lo envía junto con la credencial a
+`POST /auth/google/register/`. El username debe tener entre 4 y 16 caracteres,
+usar solo letras ASCII, números, guion, guion bajo o punto, y no estar reservado
+(`admin`, `root`, `administrator`, `pyroguard`, `soporte`). La comparación de
+reservados y duplicados no distingue mayúsculas; se conserva la capitalización
+elegida por la persona. La API no ofrece registro con formulario ni inicio de
+sesión con contraseña; el acceso a `/admin/` de Django conserva su sesión y
+contraseña habituales.
 
 ## Acceso con Google
 
@@ -279,6 +294,8 @@ Configura `GOOGLE_CLIENT_ID` con un OAuth Client ID de tipo aplicación web:
 
 Solo se aceptan cuentas `@gmail.com` con `email_verified` confirmado por
 Google. Si `GOOGLE_CLIENT_ID` está vacío, `POST /auth/google/` responde `503`.
+Mientras la pantalla de consentimiento siga en modo de pruebas, cada persona
+debe estar agregada como usuario de prueba en Google Cloud.
 El endpoint limita el acceso a **10 intentos por minuto y por IP** y responde
 `429` con `Retry-After` al superar el cupo.
 
@@ -287,11 +304,11 @@ comodines en los orígenes autorizados: agrega cada origen exacto que necesites 
 usa el dominio estable de producción para probar el acceso. El origen local
 `http://localhost:4200` se configura por separado.
 
-El primer acceso con Google crea la cuenta normal del usuario. Para permitirle
-reconocer y cerrar alertas, inicia sesión en `/admin/` con un administrador de
-Django, abre **Usuarios**, selecciona esa cuenta y asígnala al grupo
-**Operadores**. La migración crea el grupo automáticamente. El usuario también
-puede gestionar alertas si es `is_staff` o superusuario.
+Tras completar el registro con Google, para permitir que la cuenta reconozca y
+cierre alertas, inicia sesión en `/admin/` con un administrador de Django, abre
+**Usuarios**, selecciona esa cuenta y asígnala al grupo **Operadores**. La
+migración crea el grupo automáticamente. El usuario también puede gestionar
+alertas si es `is_staff` o superusuario.
 
 Ejemplo de status y filtros de lectura:
 
@@ -489,25 +506,26 @@ Qué hay que saber:
 | Endpoint | Lectura (GET) | Escritura |
 | --- | --- | --- |
 | `/readings/`, `/dashboard/summary/`, `/nodes/…`, `/alerts/…` | Pública | Nodos y transiciones de alertas: token. Lecturas: `X-API-Key` |
-| `/auth/google/` | — | Siempre abierto; requiere una credencial Google válida |
+| `/health/` | Siempre pública | — |
+| `/auth/google/`, `/auth/google/register/` | — | Siempre abiertos; requieren una credencial Google válida |
 | `/auth/me/` | Token | — |
 | `/auth/logout/` | — | Token; elimina el token actual |
 
-Hoy son públicas porque el dashboard aún no tiene inicio de sesión. Con
-`PUBLIC_READ_ACCESS=False` todas las consultas GET responden HTTP 401 sin
-`Authorization: Token …`, sin tocar código; `/auth/me/` siempre exige token.
-La ingesta con `X-API-Key` y el acceso con Google no cambian. Las lecturas
-muestran estado de nodos y alertas, por lo que conviene cerrarlas en cuanto el
-frontend pueda enviar el token.
+Con `PUBLIC_READ_ACCESS=False`, las consultas GET de nodos, lecturas, alertas y
+dashboard responden HTTP 401 sin `Authorization: Token …`. El frontend ya envía
+el token en esas consultas cuando hay una sesión. `/health/` y los dos endpoints
+de acceso/registro con Google siguen públicos; `/auth/me/` siempre exige token.
+La ingesta con `X-API-Key` no cambia: los POST de lecturas siguen usando esa
+clave, aunque el cliente también tenga token.
 
 ## Límite de peticiones
 
-Cada IP tiene tres cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
+Cada IP tiene cupos independientes: las consultas GET (`THROTTLE_READ_RATE`,
 compartido por todos los endpoints de lectura), la ingesta POST de lecturas
-(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red) y
-el acceso con Google (10/minuto, fijo). Al superarlos la API responde HTTP 429
-con la cabecera `Retry-After`. Las credenciales de ingesta no válidas se
-rechazan antes de contar contra su cupo.
+(`THROTTLE_INGEST_RATE`, holgado para varios nodos detrás de una misma red), el
+acceso con Google y el registro con Google (10/minuto por endpoint, fijo). Al
+superarlos la API responde HTTP 429 con la cabecera `Retry-After`. Las
+credenciales de ingesta no válidas se rechazan antes de contar contra su cupo.
 
 Los contadores viven en la memoria de cada proceso, así que con varios workers
 de gunicorn el límite efectivo se multiplica por el número de workers.
