@@ -18,7 +18,7 @@ from .services.evaluation_queue import drain, evaluate_pending, load_batch, pend
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "google_login": None},
+    {"read": None, "ingest": None, "google_login": None, "google_register": None},
 )
 
 

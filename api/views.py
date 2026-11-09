@@ -3,7 +3,7 @@ from collections.abc import Mapping
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -28,6 +28,7 @@ from .serializers import (
     AlertSerializer,
     GoogleAuthResponseSerializer,
     GoogleCredentialSerializer,
+    GoogleRegisterSerializer,
     GoogleRegistrationRequiredSerializer,
     GoogleUserSerializer,
     NodeSerializer,
@@ -51,11 +52,23 @@ from .services.reading_queries import filter_readings, parse_datetime_parameter
 from .services.risk_zones import get_risk_zones
 from .services.series import merge_sorted
 from .services.series_queries import load_series, parse_series_query
-from .services.users import build_username
-from .throttles import GoogleLoginThrottle, IngestThrottle, ReadThrottle
+from .services.users import build_username, create_google_user
+from .throttles import (
+    GoogleLoginThrottle,
+    GoogleRegisterThrottle,
+    IngestThrottle,
+    ReadThrottle,
+)
 
 logger = logging.getLogger("api.readings")
 auth_logger = logging.getLogger("api.auth")
+
+
+class GoogleIdentityError(Exception):
+    def __init__(self, detail, response_status):
+        self.detail = detail
+        self.response_status = response_status
+        super().__init__(detail)
 
 
 def _auth_error(detail, response_status):
@@ -72,6 +85,45 @@ def _user_summary(user):
         "name": user.first_name or user.get_username(),
         "can_manage_alerts": can_manage_alerts(user),
     }
+
+
+def _verify_google_identity(credential):
+    try:
+        claims = google_auth.verify_credential(
+            credential,
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except ValueError as exc:
+        auth_logger.warning(
+            "No se pudo verificar la cuenta de Google. Tipo de excepción: %s",
+            type(exc).__name__,
+        )
+        raise GoogleIdentityError(
+            "No se pudo verificar la cuenta de Google.",
+            status.HTTP_400_BAD_REQUEST,
+        ) from None
+
+    if not isinstance(claims, dict):
+        raise GoogleIdentityError(
+            "No se pudo verificar la cuenta de Google.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    email_claim = claims.get("email")
+    email = email_claim.lower() if isinstance(email_claim, str) else ""
+    if claims.get("email_verified") is not True or not email.endswith("@gmail.com"):
+        raise GoogleIdentityError(
+            "Solo se admiten cuentas @gmail.com verificadas por Google.",
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    google_sub = claims.get("sub")
+    if not isinstance(google_sub, str) or not google_sub or len(google_sub) > 255:
+        raise GoogleIdentityError(
+            "No se pudo verificar la cuenta de Google.",
+            status.HTTP_400_BAD_REQUEST,
+        )
+    return claims, email, google_sub
 
 
 class GoogleLoginView(APIView):
@@ -111,42 +163,12 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        credential = credential_serializer.validated_data["credential"]
         try:
-            claims = google_auth.verify_credential(
-                credential,
-                settings.GOOGLE_CLIENT_ID,
+            claims, email, google_sub = _verify_google_identity(
+                credential_serializer.validated_data["credential"]
             )
-        except ValueError as exc:
-            auth_logger.warning(
-                "No se pudo verificar la cuenta de Google. Tipo de excepción: %s",
-                type(exc).__name__,
-            )
-            return _auth_error(
-                "No se pudo verificar la cuenta de Google.",
-                status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not isinstance(claims, dict):
-            return _auth_error(
-                "No se pudo verificar la cuenta de Google.",
-                status.HTTP_400_BAD_REQUEST,
-            )
-
-        email_claim = claims.get("email")
-        email = email_claim.lower() if isinstance(email_claim, str) else ""
-        if claims.get("email_verified") is not True or not email.endswith("@gmail.com"):
-            return _auth_error(
-                "Solo se admiten cuentas @gmail.com verificadas por Google.",
-                status.HTTP_403_FORBIDDEN,
-            )
-
-        google_sub = claims.get("sub")
-        if not isinstance(google_sub, str) or not google_sub or len(google_sub) > 255:
-            return _auth_error(
-                "No se pudo verificar la cuenta de Google.",
-                status.HTTP_400_BAD_REQUEST,
-            )
+        except GoogleIdentityError as exc:
+            return _auth_error(exc.detail, exc.response_status)
 
         user = google_auth.get_existing_user(email, google_sub)
         if user is None:
@@ -189,6 +211,115 @@ class GoogleLoginView(APIView):
         raise Throttled(
             wait,
             detail="Has superado el límite de acceso con Google. Intenta de nuevo más tarde.",
+        )
+
+
+class GoogleRegisterView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [GoogleRegisterThrottle]
+
+    @extend_schema(
+        summary="Registrar una cuenta con Google",
+        request=GoogleRegisterSerializer,
+        responses={
+            200: GoogleAuthResponseSerializer,
+            201: GoogleAuthResponseSerializer,
+            400: o.ErrorSerializer,
+            403: o.ErrorSerializer,
+            429: o.ErrorSerializer,
+            503: o.ErrorSerializer,
+        },
+    )
+    def post(self, request):
+        if not settings.GOOGLE_CLIENT_ID:
+            return _auth_error(
+                "El acceso con Google no está configurado.",
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not isinstance(request.data, Mapping):
+            return _auth_error(
+                "El cuerpo de la solicitud debe ser un objeto.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+
+        credential_serializer = GoogleCredentialSerializer(data=request.data)
+        if not credential_serializer.is_valid():
+            return Response(
+                {"status": "error", "errors": credential_serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            claims, email, google_sub = _verify_google_identity(
+                credential_serializer.validated_data["credential"]
+            )
+        except GoogleIdentityError as exc:
+            return _auth_error(exc.detail, exc.response_status)
+
+        user = google_auth.get_existing_user(email, google_sub)
+        if user is not None:
+            if not user.is_active:
+                return _auth_error(
+                    "Tu cuenta está desactivada.",
+                    status.HTTP_403_FORBIDDEN,
+                )
+            token, _ = Token.objects.get_or_create(user=user)
+            auth_logger.info(
+                "Acceso con Google concedido al usuario %s.",
+                user.get_username(),
+            )
+            return Response(
+                {"token": token.key, "user": _user_summary(user)},
+                status=status.HTTP_200_OK,
+            )
+
+        register_serializer = GoogleRegisterSerializer(data=request.data)
+        if not register_serializer.is_valid():
+            return Response(
+                {"status": "error", "errors": register_serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = create_google_user(
+                email,
+                google_sub,
+                register_serializer.validated_data["username"],
+                claims.get("given_name"),
+            )
+        except IntegrityError:
+            return Response(
+                {
+                    "status": "error",
+                    "errors": {
+                        "username": ["Ese nombre de usuario no está disponible."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not user.is_active:
+            return _auth_error(
+                "Tu cuenta está desactivada.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        token, _ = Token.objects.get_or_create(user=user)
+        auth_logger.info(
+            "Acceso con Google concedido al usuario %s.",
+            user.get_username(),
+        )
+        return Response(
+            {"token": token.key, "user": _user_summary(user)},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def throttled(self, request, wait):
+        raise Throttled(
+            wait,
+            detail="Has superado el límite de registro con Google. Intenta de nuevo más tarde.",
         )
 
 

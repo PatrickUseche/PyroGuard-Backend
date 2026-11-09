@@ -41,7 +41,12 @@ from .services.users import build_username
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "google_login": None},
+    {
+        "read": None,
+        "ingest": None,
+        "google_login": None,
+        "google_register": None,
+    },
 )
 
 
@@ -1960,11 +1965,22 @@ class ThrottlingTests(APITestCase):
         self.addCleanup(cache.clear)
         self.node = Node.objects.create(node_id="NODE-001")
 
-    def limit(self, read="1000/min", ingest="1000/min", google_login="1000/min"):
+    def limit(
+        self,
+        read="1000/min",
+        ingest="1000/min",
+        google_login="1000/min",
+        google_register="1000/min",
+    ):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": ingest, "google_login": google_login},
+            {
+                "read": read,
+                "ingest": ingest,
+                "google_login": google_login,
+                "google_register": google_register,
+            },
         )
 
     def post_reading(self):
@@ -2112,8 +2128,12 @@ class ThrottlingTests(APITestCase):
     def test_settings_define_every_scope(self):
         rates = settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
 
-        self.assertEqual(set(rates), {"read", "ingest", "google_login"})
+        self.assertEqual(
+            set(rates),
+            {"read", "ingest", "google_login", "google_register"},
+        )
         self.assertEqual(rates["google_login"], "10/min")
+        self.assertEqual(rates["google_register"], "10/min")
         self.assertIn(
             "api.throttles.ReadThrottle",
             settings_module.REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"],
@@ -2464,7 +2484,12 @@ class ClientIPThrottlingTests(APITestCase):
         return patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": read, "ingest": "1000/min", "google_login": "1000/min"},
+            {
+                "read": read,
+                "ingest": "1000/min",
+                "google_login": "1000/min",
+                "google_register": "1000/min",
+            },
         )
 
     def get(self, **headers):
@@ -2530,7 +2555,12 @@ class ClientIPThrottlingTests(APITestCase):
         with patch.object(
             SimpleRateThrottle,
             "THROTTLE_RATES",
-            {"read": "1000/min", "ingest": "1000/min", "google_login": "1/min"},
+            {
+                "read": "1000/min",
+                "ingest": "1000/min",
+                "google_login": "1/min",
+                "google_register": "1000/min",
+            },
         ):
             with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
                 with patch(

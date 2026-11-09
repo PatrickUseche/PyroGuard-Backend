@@ -15,7 +15,7 @@ from .services.live_readings import live_readings
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "google_login": None},
+    {"read": None, "ingest": None, "google_login": None, "google_register": None},
 )
 
 
