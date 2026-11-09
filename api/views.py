@@ -2,6 +2,7 @@ import logging
 from collections.abc import Mapping
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -27,6 +28,7 @@ from .serializers import (
     AlertSerializer,
     GoogleAuthResponseSerializer,
     GoogleCredentialSerializer,
+    GoogleRegistrationRequiredSerializer,
     GoogleUserSerializer,
     NodeSerializer,
     SensorReadingSerializer,
@@ -49,6 +51,7 @@ from .services.reading_queries import filter_readings, parse_datetime_parameter
 from .services.risk_zones import get_risk_zones
 from .services.series import merge_sorted
 from .services.series_queries import load_series, parse_series_query
+from .services.users import build_username
 from .throttles import GoogleLoginThrottle, IngestThrottle, ReadThrottle
 
 logger = logging.getLogger("api.readings")
@@ -81,6 +84,7 @@ class GoogleLoginView(APIView):
         request=GoogleCredentialSerializer,
         responses={
             200: GoogleAuthResponseSerializer,
+            404: GoogleRegistrationRequiredSerializer,
             400: o.ErrorSerializer,
             403: o.ErrorSerializer,
             429: o.ErrorSerializer,
@@ -144,11 +148,27 @@ class GoogleLoginView(APIView):
                 status.HTTP_400_BAD_REQUEST,
             )
 
-        user = google_auth.get_or_create_user(
-            email,
-            google_sub,
-            claims.get("given_name"),
-        )
+        user = google_auth.get_existing_user(email, google_sub)
+        if user is None:
+            given_name = claims.get("given_name")
+            return Response(
+                {
+                    "status": "error",
+                    "code": "registration_required",
+                    "errors": {
+                        "detail": "Esta cuenta de Google aún no está registrada."
+                    },
+                    "email": email,
+                    "name": given_name if isinstance(given_name, str) else "",
+                    "suggested_username": build_username(
+                        email,
+                        lambda username: get_user_model()
+                        ._default_manager.filter(username__iexact=username)
+                        .exists(),
+                    ),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if not user.is_active:
             return _auth_error(
                 "Tu cuenta está desactivada.",

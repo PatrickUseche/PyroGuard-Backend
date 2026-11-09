@@ -197,7 +197,7 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 ## Fase 10 — Registro con Google
 
 - [x] feat(auth): validador del nombre de usuario (4 a 16 caracteres, reservados, sin distinguir mayúsculas) [10.1]
-- [ ] feat(auth): `POST /api/auth/google/` indica que falta el registro cuando la cuenta de Google no existe [10.2]
+- [x] feat(auth): `POST /api/auth/google/` indica que falta el registro cuando la cuenta de Google no existe [10.2]
 - [ ] feat(auth): `POST /api/auth/google/register/` crea la cuenta con el nombre de usuario elegido [10.3]
 - [ ] test(auth): pruebas del registro con Google y de las lecturas cerradas [10.4]
 - [ ] docs(auth): README del registro con Google y de `PUBLIC_READ_ACCESS=False` [10.5]

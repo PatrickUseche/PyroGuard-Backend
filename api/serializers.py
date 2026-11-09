@@ -69,6 +69,15 @@ class GoogleAuthResponseSerializer(serializers.Serializer):
     user = GoogleUserSerializer()
 
 
+class GoogleRegistrationRequiredSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["error"])
+    code = serializers.CharField()
+    errors = serializers.DictField(child=serializers.CharField())
+    email = serializers.EmailField()
+    name = serializers.CharField(allow_blank=True)
+    suggested_username = serializers.CharField()
+
+
 class SensorReadingSerializer(serializers.ModelSerializer):
     node_id = serializers.CharField(
         write_only=True,

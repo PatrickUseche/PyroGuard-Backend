@@ -1030,33 +1030,40 @@ class GoogleAuthEndpointTests(APITestCase):
             data = {"credential": "mock-credential"}
         return self.client.post(reverse("google_login"), data, format="json")
 
-    def test_success_creates_user_and_returns_token(self):
-        with self.assertLogs("api.auth", level="INFO") as logs:
-            with patch(
-                "api.services.google_auth.verify_oauth2_token",
-                return_value=self.claims(),
-            ) as verifier:
-                response = self.post_google()
+    def test_unregistered_account_requires_registration_without_creating_data(self):
+        with patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value=self.claims(),
+        ) as verifier:
+            response = self.post_google()
 
-        user = get_user_model().objects.get(email="new.user@gmail.com")
-        account = GoogleAccount.objects.get(user=user)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(Token.objects.filter(key=response.data["token"], user=user).exists())
-        self.assertEqual(user.username, "new.user")
-        self.assertFalse(user.is_staff)
-        self.assertFalse(user.is_superuser)
-        self.assertFalse(user.has_usable_password())
-        self.assertEqual(user.first_name, "Ada")
-        self.assertEqual(account.google_sub, "google-sub-123")
-        self.assertEqual(response.data["user"]["name"], "Ada")
-        self.assertFalse(response.data["user"]["can_manage_alerts"])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            response.data,
+            {
+                "status": "error",
+                "code": "registration_required",
+                "errors": {
+                    "detail": "Esta cuenta de Google aún no está registrada."
+                },
+                "email": "new.user@gmail.com",
+                "name": "Ada",
+                "suggested_username": "new.user",
+            },
+        )
+        self.assertEqual(get_user_model().objects.count(), 0)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
+        self.assertEqual(Token.objects.count(), 0)
         self.assertEqual(verifier.call_args.args[0], "mock-credential")
         self.assertEqual(verifier.call_args.args[2], "test-google-client")
         self.assertEqual(verifier.call_args.kwargs, {"clock_skew_in_seconds": 10})
-        self.assertIn(user.username, logs.output[0])
-        self.assertNotIn(response.data["token"], logs.output[0])
 
     def test_second_access_reuses_the_user_and_token(self):
+        user = get_user_model().objects.create_user(
+            username="new.user",
+            email="new.user@gmail.com",
+        )
+        GoogleAccount.objects.create(user=user, google_sub="google-sub-123")
         with patch(
             "api.services.google_auth.verify_oauth2_token",
             return_value=self.claims(),
@@ -2057,30 +2064,32 @@ class ThrottlingTests(APITestCase):
 
         self.assertEqual(
             statuses,
-            [status.HTTP_200_OK, status.HTTP_200_OK, status.HTTP_200_OK,
+            [status.HTTP_404_NOT_FOUND, status.HTTP_404_NOT_FOUND, status.HTTP_404_NOT_FOUND,
              status.HTTP_429_TOO_MANY_REQUESTS],
         )
 
     def test_valid_google_login_is_blocked_once_the_limit_is_reached(self):
         with self.limit(google_login="2/min"):
-            self.google_login()
-            self.google_login()
+            first = self.google_login()
+            second = self.google_login()
             response = self.google_login()
 
+        self.assertEqual(first.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(second.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertGreater(int(response["Retry-After"]), 0)
 
     def test_google_login_limit_does_not_consume_the_read_limit(self):
         with self.limit(read="1/min", google_login="5/min"):
             for _ in range(3):
-                self.assertEqual(self.google_login().status_code, status.HTTP_200_OK)
+                self.assertEqual(self.google_login().status_code, status.HTTP_404_NOT_FOUND)
             response = self.client.get(reverse("dashboard_summary"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_exhausted_google_login_limit_does_not_block_reads(self):
         with self.limit(read="5/min", google_login="1/min"):
-            self.assertEqual(self.google_login().status_code, status.HTTP_200_OK)
+            self.assertEqual(self.google_login().status_code, status.HTTP_404_NOT_FOUND)
             blocked = self.google_login()
             response = self.client.get(reverse("dashboard_summary"))
 
@@ -2088,6 +2097,11 @@ class ThrottlingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_google_login_still_returns_a_token_within_the_limit(self):
+        user = get_user_model().objects.create_user(
+            username="operador",
+            email="operador@gmail.com",
+        )
+        GoogleAccount.objects.create(user=user, google_sub="throttle-user")
         with self.limit(google_login="3/min"):
             response = self.google_login()
 
@@ -2215,8 +2229,8 @@ class ReadAccessTests(APITestCase):
                 format="json",
             )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("token", response.data)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["code"], "registration_required")
 
     @override_settings(PUBLIC_READ_ACCESS=False, INGEST_API_KEY=ingest_api_key)
     def test_closed_reads_do_not_block_ingestion_with_the_api_key(self):
@@ -2539,7 +2553,11 @@ class ClientIPThrottlingTests(APITestCase):
 
         self.assertEqual(
             statuses,
-            [status.HTTP_200_OK, status.HTTP_429_TOO_MANY_REQUESTS, status.HTTP_200_OK],
+            [
+                status.HTTP_404_NOT_FOUND,
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                status.HTTP_404_NOT_FOUND,
+            ],
         )
 
 class ClientIPSettingsTests(SimpleTestCase):
