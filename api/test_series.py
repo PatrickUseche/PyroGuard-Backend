@@ -23,7 +23,7 @@ from .services.series import (
 _unlimited_rates = patch.object(
     SimpleRateThrottle,
     "THROTTLE_RATES",
-    {"read": None, "ingest": None, "google_login": None},
+    {"read": None, "ingest": None, "google_login": None, "google_register": None},
 )
 
 

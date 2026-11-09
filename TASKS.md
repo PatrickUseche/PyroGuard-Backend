@@ -193,3 +193,11 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] refactor(auth): retirar el inicio de sesión con contraseña de la API [9.6]
 - [x] test(auth): pruebas del acceso con Google y de los permisos [9.7]
 - [x] docs(auth): README y `.env.example` del acceso con Google [9.8]
+
+## Fase 10 — Registro con Google
+
+- [x] feat(auth): validador del nombre de usuario (4 a 16 caracteres, reservados, sin distinguir mayúsculas) [10.1]
+- [x] feat(auth): `POST /api/auth/google/` indica que falta el registro cuando la cuenta de Google no existe [10.2]
+- [x] feat(auth): `POST /api/auth/google/register/` crea la cuenta con el nombre de usuario elegido [10.3]
+- [x] test(auth): pruebas del registro con Google y de las lecturas cerradas [10.4]
+- [x] docs(auth): README del registro con Google y de `PUBLIC_READ_ACCESS=False` [10.5]

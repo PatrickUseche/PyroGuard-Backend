@@ -285,6 +285,7 @@ REST_FRAMEWORK = {
         "read": _env_rate("THROTTLE_READ_RATE", "120/min"),
         "ingest": _env_rate("THROTTLE_INGEST_RATE", "300/min"),
         "google_login": "10/min",
+        "google_register": "10/min",
     },
     # Saltos de proxy delante de la app; sin valor, DRF toma todo X-Forwarded-For.
     "NUM_PROXIES": _env_non_negative_int("NUM_PROXIES"),

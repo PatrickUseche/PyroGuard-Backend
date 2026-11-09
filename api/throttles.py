@@ -53,6 +53,13 @@ class GoogleLoginThrottle(_IPMethodThrottle):
     safe_methods = False
 
 
+class GoogleRegisterThrottle(_IPMethodThrottle):
+    """Limita por IP los intentos de registro con Google."""
+
+    scope = "google_register"
+    safe_methods = False
+
+
 class IngestThrottle(_IPMethodThrottle):
     """Ingesta POST de lecturas; el límite es holgado para varios nodos por IP."""
 
