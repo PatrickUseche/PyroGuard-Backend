@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import Alert, Node, RiskAssessment, SensorReading
+from .services.users import validate_username
 
 
 class JsonBooleanField(serializers.BooleanField):
@@ -36,6 +37,24 @@ class GoogleCredentialSerializer(serializers.Serializer):
         max_length=4096,
         trim_whitespace=False,
     )
+
+
+class GoogleRegisterSerializer(serializers.Serializer):
+    credential = GoogleCredentialField(
+        allow_blank=True,
+        max_length=4096,
+        trim_whitespace=False,
+    )
+    username = serializers.CharField(trim_whitespace=False)
+
+    def validate_username(self, value):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            validate_username(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+        return value
 
 
 class GoogleUserSerializer(serializers.Serializer):
