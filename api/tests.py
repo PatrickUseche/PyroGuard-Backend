@@ -1236,6 +1236,223 @@ class GoogleAuthEndpointTests(APITestCase):
         self.assertEqual(after_logout.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+@override_settings(GOOGLE_CLIENT_ID="test-google-client")
+class GoogleRegisterEndpointTests(APITestCase):
+    def claims(self, **overrides):
+        claims = {
+            "sub": "google-register-sub",
+            "email": "new.register@gmail.com",
+            "email_verified": True,
+            "given_name": "Ada",
+        }
+        claims.update(overrides)
+        return claims
+
+    def post_register(self, data=None, claims=None):
+        if data is None:
+            data = {"credential": "mock-credential", "username": "AdaUser"}
+        if claims is None:
+            claims = self.claims()
+        with patch(
+            "api.services.google_auth.verify_credential",
+            return_value=claims,
+        ) as verifier:
+            response = self.client.post(
+                reverse("google_register"),
+                data,
+                format="json",
+            )
+        return response, verifier
+
+    def test_registration_creates_user_and_token_for_auth_me(self):
+        response, _ = self.post_register()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["user"]["username"], "AdaUser")
+        self.assertEqual(response.data["user"]["email"], "new.register@gmail.com")
+        self.assertEqual(response.data["user"]["name"], "Ada")
+        self.assertFalse(response.data["user"]["can_manage_alerts"])
+        user = get_user_model().objects.get(username="AdaUser")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.has_usable_password())
+        self.assertEqual(user.first_name, "Ada")
+        self.assertEqual(
+            GoogleAccount.objects.get(user=user).google_sub,
+            "google-register-sub",
+        )
+
+        profile = self.client.get(
+            reverse("auth_me"),
+            HTTP_AUTHORIZATION=f"Token {response.data['token']}",
+        )
+        self.assertEqual(profile.status_code, status.HTTP_200_OK)
+        self.assertEqual(profile.data["username"], "AdaUser")
+
+    def test_existing_google_account_is_idempotent(self):
+        user = get_user_model().objects.create_user(
+            username="existing-user",
+            email="new.register@gmail.com",
+        )
+        GoogleAccount.objects.create(user=user, google_sub="google-register-sub")
+
+        response, _ = self.post_register(
+            {"credential": "mock-credential", "username": "!invalid"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["username"], "existing-user")
+        self.assertEqual(get_user_model().objects.count(), 1)
+        self.assertEqual(GoogleAccount.objects.count(), 1)
+        self.assertEqual(Token.objects.filter(user=user).count(), 1)
+
+    def test_existing_email_is_linked_idempotently_without_changing_password(self):
+        user = get_user_model().objects.create_user(
+            username="legacy-register",
+            email="NEW.REGISTER@GMAIL.COM",
+        )
+        user.set_password("keep-this-password")
+        user.save(update_fields=["password"])
+
+        response, _ = self.post_register()
+
+        user.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["username"], "legacy-register")
+        self.assertTrue(user.check_password("keep-this-password"))
+        self.assertEqual(GoogleAccount.objects.get(user=user).google_sub, "google-register-sub")
+        self.assertEqual(get_user_model().objects.count(), 1)
+
+    def test_username_length_boundaries(self):
+        cases = (
+            ("abc", status.HTTP_400_BAD_REQUEST),
+            ("abcd", status.HTTP_201_CREATED),
+            ("a" * 16, status.HTTP_201_CREATED),
+            ("a" * 17, status.HTTP_400_BAD_REQUEST),
+        )
+
+        for index, (username, expected_status) in enumerate(cases):
+            with self.subTest(length=len(username)):
+                response, _ = self.post_register(
+                    {"credential": "mock-credential", "username": username},
+                    self.claims(
+                        sub=f"google-register-sub-{index}",
+                        email=f"new{index}.register@gmail.com",
+                    ),
+                )
+                self.assertEqual(response.status_code, expected_status)
+                if expected_status == status.HTTP_400_BAD_REQUEST:
+                    self.assertEqual(
+                        response.data["errors"]["username"],
+                        ["El nombre de usuario debe tener entre 4 y 16 caracteres."],
+                    )
+
+    def test_invalid_reserved_and_case_insensitive_duplicate_names_are_rejected(self):
+        get_user_model().objects.create_user(
+            username="TakenName",
+            email="taken@gmail.com",
+        )
+        cases = (
+            ("bad name", "Usa solo letras, números, guion, guion bajo o punto."),
+            ("Admin", "Ese nombre de usuario no está disponible."),
+            ("takenname", "Ese nombre de usuario no está disponible."),
+        )
+
+        for index, (username, expected_error) in enumerate(cases):
+            with self.subTest(username=username):
+                response, _ = self.post_register(
+                    {"credential": "mock-credential", "username": username},
+                    self.claims(
+                        sub=f"google-register-invalid-{index}",
+                        email=f"invalid{index}@gmail.com",
+                    ),
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(response.data["status"], "error")
+                self.assertEqual(response.data["errors"]["username"], [expected_error])
+
+        self.assertEqual(get_user_model().objects.count(), 1)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
+
+    def test_non_gmail_and_unverified_accounts_are_rejected(self):
+        for claims in (
+            self.claims(email="person@example.com"),
+            self.claims(email_verified=False),
+        ):
+            with self.subTest(claims=claims):
+                response, _ = self.post_register(claims=claims)
+
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(
+                    response.data["errors"]["detail"],
+                    "Solo se admiten cuentas @gmail.com verificadas por Google.",
+                )
+
+        self.assertEqual(get_user_model().objects.count(), 0)
+
+    def test_invalid_credential_is_rejected(self):
+        with patch(
+            "api.services.google_auth.verify_credential",
+            side_effect=ValueError("private credential"),
+        ):
+            response = self.client.post(
+                reverse("google_register"),
+                {"credential": "mock-credential", "username": "AdaUser"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["errors"]["detail"],
+            "No se pudo verificar la cuenta de Google.",
+        )
+
+    def test_oversized_credential_is_rejected_without_verification(self):
+        with patch("api.services.google_auth.verify_credential") as verifier:
+            response = self.client.post(
+                reverse("google_register"),
+                {"credential": "x" * 5000, "username": "AdaUser"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        verifier.assert_not_called()
+        self.assertEqual(get_user_model().objects.count(), 0)
+
+    @override_settings(GOOGLE_CLIENT_ID="")
+    def test_empty_client_id_returns_service_unavailable_without_verification(self):
+        with patch("api.services.google_auth.verify_credential") as verifier:
+            response = self.client.post(
+                reverse("google_register"),
+                {"credential": "mock-credential", "username": "AdaUser"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(
+            response.data["errors"]["detail"],
+            "El acceso con Google no está configurado.",
+        )
+        verifier.assert_not_called()
+
+    def test_inactive_existing_account_cannot_register_or_get_token(self):
+        user = get_user_model().objects.create_user(
+            username="inactive-register",
+            email="new.register@gmail.com",
+            is_active=False,
+        )
+        GoogleAccount.objects.create(user=user, google_sub="google-register-sub")
+
+        response, _ = self.post_register()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data["errors"]["detail"],
+            "Tu cuenta está desactivada.",
+        )
+        self.assertFalse(Token.objects.filter(user=user).exists())
+
+
 class BuildUsernameEdgeCaseTests(SimpleTestCase):
     def test_reserved_names_are_avoided(self):
         for reserved in ("admin", "root", "administrator", "pyroguard", "soporte"):
@@ -2074,6 +2291,25 @@ class ThrottlingTests(APITestCase):
                     **headers,
                 )
 
+    def google_register(self):
+        with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
+            with patch(
+                "api.services.google_auth.verify_credential",
+                return_value={
+                    "sub": "throttle-register-user",
+                    "email": "register-limited@gmail.com",
+                    "email_verified": True,
+                },
+            ):
+                return self.client.post(
+                    reverse("google_register"),
+                    {
+                        "credential": "mock-credential",
+                        "username": "registerlimited",
+                    },
+                    format="json",
+                )
+
     def test_google_login_attempts_are_limited_per_ip(self):
         with self.limit(google_login="3/min"):
             statuses = [self.google_login().status_code for _ in range(4)]
@@ -2083,6 +2319,15 @@ class ThrottlingTests(APITestCase):
             [status.HTTP_404_NOT_FOUND, status.HTTP_404_NOT_FOUND, status.HTTP_404_NOT_FOUND,
              status.HTTP_429_TOO_MANY_REQUESTS],
         )
+
+    def test_google_register_attempts_are_limited_per_ip(self):
+        with self.limit(google_register="1/min"):
+            first = self.google_register()
+            second = self.google_register()
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreater(int(second["Retry-After"]), 0)
 
     def test_valid_google_login_is_blocked_once_the_limit_is_reached(self):
         with self.limit(google_login="2/min"):
@@ -2236,21 +2481,36 @@ class ReadAccessTests(APITestCase):
     @override_settings(PUBLIC_READ_ACCESS=False, GOOGLE_CLIENT_ID="test-google-client")
     def test_closed_reads_do_not_block_google_login(self):
         with patch(
-            "api.services.google_auth.verify_oauth2_token",
-            return_value={
-                "sub": "public-login-user",
-                "email": "operador@gmail.com",
-                "email_verified": True,
-            },
+            "api.services.google_auth.verify_credential",
+            side_effect=[
+                {
+                    "sub": "public-login-user",
+                    "email": "operador@gmail.com",
+                    "email_verified": True,
+                },
+                {
+                    "sub": "public-register-user",
+                    "email": "public-register@gmail.com",
+                    "email_verified": True,
+                },
+            ],
         ):
+            health = self.client.get(reverse("health"))
             response = self.client.post(
                 reverse("google_login"),
                 {"credential": "mock-credential"},
                 format="json",
             )
+            registration = self.client.post(
+                reverse("google_register"),
+                {"credential": "mock-credential", "username": "publicregister"},
+                format="json",
+            )
 
+        self.assertEqual(health.status_code, status.HTTP_200_OK)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["code"], "registration_required")
+        self.assertEqual(registration.status_code, status.HTTP_201_CREATED)
 
     @override_settings(PUBLIC_READ_ACCESS=False, INGEST_API_KEY=ingest_api_key)
     def test_closed_reads_do_not_block_ingestion_with_the_api_key(self):
