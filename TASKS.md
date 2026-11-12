@@ -206,6 +206,6 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 
 - [x] feat(db): restricción única `(node, timestamp)` en `SensorReading` y migración que limpia los duplicados previos [11.1]
 - [x] fix(ingestion): responder como duplicado cuando la base rechaza la lectura (carreras entre peticiones o workers) [11.2]
-- [ ] feat(ingestion): reparar las lecturas que quedaron sin evaluación por un fallo posterior a guardarlas [11.3]
-- [ ] test(ingestion): pruebas de la reparación de lecturas sin evaluación [11.4]
-- [ ] docs: tareas programadas necesarias y qué pasa sin ellas en el plan gratuito de Render [11.5]
+- [x] feat(ingestion): reparar las lecturas que quedaron sin evaluación por un fallo posterior a guardarlas [11.3]
+- [x] test(ingestion): pruebas de la reparación de lecturas sin evaluación [11.4]
+- [x] docs: tareas programadas necesarias y qué pasa sin ellas en el plan gratuito de Render [11.5]
