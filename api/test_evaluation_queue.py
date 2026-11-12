@@ -299,3 +299,75 @@ class DrainCommandTests(TestCase):
 
         self.assertIn("Evaluadas: 0", output)
         self.assertIn("Pendientes: 0", output)
+
+
+@override_settings(AI_SERVICE_URL="")
+class RepairUnassessedTests(TestCase):
+    """Lecturas guardadas cuya evaluación falló y que quedaron sin riesgo ni alerta."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        self.node = Node.objects.create(node_id="NODE-001")
+        self.old = timezone.now() - timedelta(minutes=5)
+
+    def reading(self, timestamp=None, **extra):
+        values = {"temperature": 90, "humidity": 10, "smoke": 900, "flame": True}
+        values.update(extra)
+        return SensorReading.objects.create(
+            node=self.node, timestamp=timestamp or self.old, **values
+        )
+
+    def test_a_fire_reading_without_assessment_gets_assessment_and_alert(self):
+        from .services.evaluation_queue import repair_unassessed, unassessed_count
+
+        reading = self.reading()
+        self.assertEqual(unassessed_count(), 1)
+
+        self.assertEqual(repair_unassessed(), 1)
+
+        self.assertEqual(reading.assessment.risk_level, RiskAssessment.RiskLevel.FIRE)
+        self.assertTrue(Alert.objects.filter(reading=reading, level="FIRE").exists())
+        self.assertEqual(unassessed_count(), 0)
+
+    def test_readings_that_already_have_an_assessment_are_left_alone(self):
+        from .services.evaluation_queue import repair_unassessed
+
+        reading = self.reading()
+        RiskAssessment.objects.create(reading=reading, risk_level="NORMAL", rule_reasons=[])
+
+        self.assertEqual(repair_unassessed(), 0)
+        self.assertEqual(RiskAssessment.objects.count(), 1)
+
+    def test_very_recent_readings_are_skipped_so_an_ongoing_ingestion_is_not_stepped_on(self):
+        from django.utils import timezone
+
+        from .services.evaluation_queue import repair_unassessed
+
+        self.reading(timestamp=timezone.now())
+
+        self.assertEqual(repair_unassessed(), 0)
+
+    def test_it_respects_the_limit_and_goes_oldest_first(self):
+        from datetime import timedelta
+
+        from .services.evaluation_queue import repair_unassessed
+
+        oldest = self.reading(timestamp=self.old - timedelta(minutes=10))
+        newer = self.reading()
+
+        self.assertEqual(repair_unassessed(limit=1), 1)
+
+        self.assertTrue(RiskAssessment.objects.filter(reading=oldest).exists())
+        self.assertFalse(RiskAssessment.objects.filter(reading=newer).exists())
+
+    def test_the_command_repairs_and_reports(self):
+        self.reading()
+        out = StringIO()
+
+        call_command("drain_ai_queue", stdout=out)
+
+        self.assertIn("Reparadas sin evaluación: 1", out.getvalue())
+        self.assertEqual(RiskAssessment.objects.count(), 1)
