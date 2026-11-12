@@ -151,13 +151,15 @@ class DuplicateReadingTests(APITestCase):
         lookup.assert_not_called()
 
     @override_settings(DEDUPLICATE_READINGS=False)
-    def test_it_can_be_turned_off(self):
+    def test_turning_the_filter_off_still_cannot_store_a_duplicate(self):
         self.post()
 
         response = self.post()
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(SensorReading.objects.count(), 2)
+        # Sin filtro la barrera es la restricción única de la base de datos.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "duplicate")
+        self.assertEqual(SensorReading.objects.count(), 1)
 
     @override_settings(DUPLICATE_FILTER_CAPACITY=4)
     def test_the_filter_is_rebuilt_when_it_fills_up_and_keeps_detecting_recent_duplicates(self):
@@ -181,3 +183,45 @@ class DuplicateReadingTests(APITestCase):
 
         self.node.refresh_from_db()
         self.assertEqual(self.node.last_communication, first_contact)
+
+
+@override_settings(INGEST_API_KEY=INGEST_KEY)
+class DatabaseUniquenessTests(APITestCase):
+    """La base rechaza el duplicado aunque el filtro en memoria no lo conozca."""
+
+    def setUp(self):
+        for state in (duplicate_readings, live_readings, node_status_cache):
+            state.clear()
+        self.node = Node.objects.create(node_id="NODE-001")
+
+    def test_database_rejects_same_node_and_timestamp(self):
+        from django.db import IntegrityError, transaction
+
+        values = {"temperature": 25, "humidity": 40, "smoke": 1, "timestamp": MOMENT}
+        SensorReading.objects.create(node=self.node, **values)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SensorReading.objects.create(node=self.node, **values)
+
+    def test_race_is_answered_as_duplicate_not_as_error(self):
+        existing = SensorReading.objects.create(
+            node=self.node, temperature=25, humidity=40, smoke=1, timestamp=MOMENT
+        )
+        # El filtro no conoce la lectura (como en otro worker o tras un reinicio).
+        with patch.object(duplicate_readings, "find", return_value=None):
+            response = self.client.post(
+                reverse("receive_reading"),
+                {
+                    "node_id": "NODE-001",
+                    "temperature": 25,
+                    "humidity": 40,
+                    "smoke": 1,
+                    "flame": False,
+                    "timestamp": MOMENT.isoformat(),
+                },
+                format="json",
+                HTTP_X_API_KEY=INGEST_KEY,
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "duplicate")
+        self.assertEqual(SensorReading.objects.count(), 1)
+        self.assertEqual(SensorReading.objects.get().pk, existing.pk)

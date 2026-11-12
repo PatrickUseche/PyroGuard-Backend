@@ -446,9 +446,11 @@ Para no consultar la base en cada ingesta se usa un filtro de Bloom en memoria: 
 que la lectura es nueva se guarda directamente; si dice que quizá ya está, se **confirma
 en la base** antes de descartarla (un falso positivo del filtro nunca pierde un dato).
 El filtro se rellena con las últimas lecturas la primera vez que se usa y se reconstruye
-al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo, así que un duplicado
-de una lectura muy antigua o llegado a otro worker puede guardarse repetido. Se
-desactiva con `DEDUPLICATE_READINGS=False`.
+al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo. El filtro solo
+ahorra consultas: la barrera definitiva es la restricción única `(node, timestamp)` de
+la base de datos, de modo que un duplicado que el filtro no conozca (otro worker, un
+reinicio o dos peticiones simultáneas) se rechaza igual y se responde como duplicado.
+`DEDUPLICATE_READINGS=False` apaga solo el filtro; la restricción sigue activa.
 
 ## Vecinos y propagación del riesgo
 
