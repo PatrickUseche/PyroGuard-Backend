@@ -53,7 +53,8 @@ Módulos principales:
 - `simulador_iot.py`: productor de lecturas con escenarios controlados.
 
 **Tareas programadas** (no corren solas; por ejemplo, Cron Jobs de Render): `send_notifications` (cada minuto),
-`drain_ai_queue` (cada minuto, solo con evaluación diferida), `check_offline_nodes` (cada 5 minutos),
+`drain_ai_queue` (cada minuto; con evaluación diferida atiende la cola de la IA y, siempre, repara las
+lecturas que se guardaron sin evaluación), `check_offline_nodes` (cada 5 minutos),
 `aggregate_readings` (cada hora) y `purge_readings` (a diario, después de agregar).
 
 La documentación interactiva de la API está en `/api/docs/` y el esquema OpenAPI en `/api/schema/`.
@@ -426,6 +427,12 @@ primera (no espera un timeout por cada pendiente) y deja el resto para la próxi
 programarlo con una frecuencia corta (por ejemplo, cada minuto en un Cron Job de Render). Mientras una
 lectura está pendiente, `/recent/` conserva el riesgo que tenía al ingresar hasta que el worker recargue.
 
+**Reparación de lecturas sin evaluación.** La ingesta confirma la lectura antes de evaluarla; si la
+evaluación o la alerta fallan (error inesperado, base caída un instante), la lectura se conserva pero sin
+riesgo ni alerta. Cada ejecución de `drain_ai_queue` empieza reparando esas lecturas (las de más de 30 s,
+de la más antigua a la más nueva): calcula el riesgo, crea la alerta y avisa a los vecinos si es `FIRE`.
+Esto ocurre aunque `AI_ASYNC_EVALUATION` esté en `False`, así que conviene programar el comando siempre.
+
 ## Agregados por hora
 
 `python manage.py aggregate_readings` guarda en `ReadingHourly` el resumen por nodo y hora
@@ -446,9 +453,11 @@ Para no consultar la base en cada ingesta se usa un filtro de Bloom en memoria: 
 que la lectura es nueva se guarda directamente; si dice que quizá ya está, se **confirma
 en la base** antes de descartarla (un falso positivo del filtro nunca pierde un dato).
 El filtro se rellena con las últimas lecturas la primera vez que se usa y se reconstruye
-al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo, así que un duplicado
-de una lectura muy antigua o llegado a otro worker puede guardarse repetido. Se
-desactiva con `DEDUPLICATE_READINGS=False`.
+al superar `DUPLICATE_FILTER_CAPACITY`; cada worker tiene el suyo. El filtro solo
+ahorra consultas: la barrera definitiva es la restricción única `(node, timestamp)` de
+la base de datos, de modo que un duplicado que el filtro no conozca (otro worker, un
+reinicio o dos peticiones simultáneas) se rechaza igual y se responde como duplicado.
+`DEDUPLICATE_READINGS=False` apaga solo el filtro; la restricción sigue activa.
 
 ## Vecinos y propagación del riesgo
 
@@ -750,7 +759,18 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
 6. Frontend en Vercel: apunta a la URL del backend y añade su dominio a `EXTRA_CORS_ORIGINS`.
 
 Las tareas programadas (avisos, nodos desconectados, mantenimiento) están comentadas al final de `render.yaml`
-porque los Cron Jobs de Render son de pago. Sin ellas la API funciona, pero no salen avisos por correo/Telegram.
+porque los Cron Jobs de Render son de pago. Sin ellas la API funciona, pero a la larga se nota:
+
+| Comando | Sin él |
+|---|---|
+| `send_notifications` | Los avisos quedan en el outbox y no salen por correo/Telegram. |
+| `check_offline_nodes` | No se detecta que un nodo dejó de comunicarse. |
+| `drain_ai_queue` | Las evaluaciones diferidas siguen `PENDING` y las lecturas que fallaron al evaluarse no se reparan. |
+| `aggregate_readings` y `purge_readings` | La tabla de lecturas crece sin límite y no hay resúmenes por hora. |
+
+Alternativa gratuita: un programador externo (por ejemplo, GitHub Actions con `schedule`) o un servicio
+de cron que ejecute los comandos contra la misma base. Revisa también que la base gratuita de Render no
+haya caducado: el PostgreSQL gratuito se elimina tras unos 30 días si no se pasa a un plan de pago.
 
 ### Configuración manual (sin Blueprint)
 

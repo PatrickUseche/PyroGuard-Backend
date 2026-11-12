@@ -102,6 +102,12 @@ class SensorReading(models.Model):
                 name="reading_node_time_idx",
             ),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["node", "timestamp"],
+                name="reading_unique_node_timestamp",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.node.node_id} - {self.timestamp}"

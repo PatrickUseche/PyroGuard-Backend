@@ -1,10 +1,10 @@
 import logging
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from api.models import Node, RiskAssessment
+from api.models import Node, RiskAssessment, SensorReading
 from api.services.ai_client import AIPrediction, request_prediction
 from api.services.alerts import maybe_create_alert
 from api.services.dashboard_cache import dashboard_cache
@@ -36,21 +36,34 @@ def ingest_reading(serializer):
         logger.info("Lectura duplicada descartada node_id=%s", node_id)
         raise DuplicateReadingError(existing)
 
-    with transaction.atomic():
-        reading = serializer.save()
-        communicated_at = timezone.now()
-        try:
-            with transaction.atomic():
-                Node.objects.filter(pk=reading.node_id).update(
-                    last_communication=communicated_at,
+    try:
+        with transaction.atomic():
+            reading = serializer.save()
+            communicated_at = timezone.now()
+            try:
+                with transaction.atomic():
+                    Node.objects.filter(pk=reading.node_id).update(
+                        last_communication=communicated_at,
+                    )
+                    reading.node.last_communication = communicated_at
+            except Exception:
+                logger.exception(
+                    "Falló la actualización de comunicación del nodo para la lectura "
+                    "id=%s; se conserva la lectura.",
+                    reading.pk,
                 )
-                reading.node.last_communication = communicated_at
-        except Exception:
-            logger.exception(
-                "Falló la actualización de comunicación del nodo para la lectura "
-                "id=%s; se conserva la lectura.",
-                reading.pk,
-            )
+    except IntegrityError:
+        # Otra petición guardó la misma lectura entre la consulta del filtro y el
+        # INSERT: la restricción única de la base es la barrera definitiva.
+        existing = (
+            SensorReading.objects.filter(node__node_id=node_id, timestamp=timestamp)
+            .select_related("node", "assessment")
+            .first()
+        )
+        if existing is None:
+            raise
+        logger.info("Lectura duplicada descartada por la base node_id=%s", node_id)
+        raise DuplicateReadingError(existing) from None
 
     duplicate_readings.remember(node_id, timestamp)
 

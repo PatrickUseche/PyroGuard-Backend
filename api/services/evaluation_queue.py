@@ -12,10 +12,14 @@ se vacía de uno en uno.
 """
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 
-from django.db import transaction
+from django.conf import settings
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 
-from api.models import RiskAssessment
+from api.models import RiskAssessment, SensorReading
+from api.services.ai_client import AIPrediction
 from api.services.alerts import maybe_create_alert
 from api.services.ingestion import _predict
 from api.services.neighbor_warnings import warn_neighbors_of_fire
@@ -119,3 +123,86 @@ def drain(limit=500):
             result.stopped_early = True
             break
     return result
+
+
+UNASSESSED_MIN_AGE = timedelta(seconds=30)
+
+
+def unassessed_count():
+    return SensorReading.objects.filter(assessment__isnull=True).count()
+
+
+def repair_unassessed(limit=500):
+    """Evalúa las lecturas que se guardaron pero se quedaron sin ``RiskAssessment``.
+
+    La ingesta confirma la lectura antes de evaluarla; si la evaluación o la alerta
+    fallan, la lectura se conserva pero sin riesgo ni alerta, y nada más la vuelve a
+    mirar. Aquí se recuperan, de la más antigua a la más nueva. Se ignoran las
+    lecturas de los últimos segundos para no pisar una ingesta que todavía está en
+    curso. Devuelve cuántas se repararon.
+    """
+    cutoff = timezone.now() - UNASSESSED_MIN_AGE
+    ids = list(
+        SensorReading.objects.filter(assessment__isnull=True, timestamp__lt=cutoff)
+        .order_by("timestamp", "pk")
+        .values_list("pk", flat=True)[:limit]
+    )
+    repaired = 0
+    for reading_id in ids:
+        try:
+            if _assess_unassessed(reading_id):
+                repaired += 1
+        except IntegrityError:
+            # Otro proceso evaluó la lectura entre la consulta y la creación.
+            continue
+        except Exception:
+            logger.exception("No se pudo reparar la lectura id=%s.", reading_id)
+    return repaired
+
+
+def _assess_unassessed(reading_id):
+    with transaction.atomic():
+        reading = (
+            SensorReading.objects.select_for_update()
+            .select_related("node")
+            .filter(pk=reading_id, assessment__isnull=True)
+            .first()
+        )
+        if reading is None:
+            return False
+
+        if settings.AI_ASYNC_EVALUATION and settings.AI_SERVICE_URL:
+            prediction = AIPrediction(status=PENDING)
+        else:
+            prediction = _predict(reading)
+        evaluation = evaluate_risk(
+            {
+                "temperature": reading.temperature,
+                "humidity": reading.humidity,
+                "smoke": reading.smoke,
+                "flame": reading.flame,
+            },
+            ai_probability=prediction.probability,
+        )
+        reasons = evaluation["reasons"]
+        if prediction.explanation:
+            reasons = [*reasons, f"IA: {prediction.explanation}"]
+        assessment = RiskAssessment.objects.create(
+            reading=reading,
+            risk_level=evaluation["level"],
+            ai_probability=evaluation["ai_probability"],
+            ai_model_version=prediction.model_version,
+            ai_status=prediction.status,
+            ai_risk_level=prediction.risk_level,
+            ai_probabilities=prediction.probabilities,
+            rule_reasons=reasons,
+        )
+        maybe_create_alert(reading.node, reading, assessment)
+
+    if assessment.risk_level == RiskAssessment.RiskLevel.FIRE:
+        try:
+            warn_neighbors_of_fire(reading.node.node_id)
+        except Exception:
+            logger.exception("No se pudo avisar a los vecinos del nodo %s.", reading.node.node_id)
+    logger.info("Lectura reparada id=%s risk_level=%s", reading.pk, assessment.risk_level)
+    return True
