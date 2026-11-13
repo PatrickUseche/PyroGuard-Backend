@@ -209,3 +209,10 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] feat(ingestion): reparar las lecturas que quedaron sin evaluación por un fallo posterior a guardarlas [11.3]
 - [x] test(ingestion): pruebas de la reparación de lecturas sin evaluación [11.4]
 - [x] docs: tareas programadas necesarias y qué pasa sin ellas en el plan gratuito de Render [11.5]
+
+## Fase 12 — Pruebas E2E con Playwright
+
+- [x] fix(api): el 404 de un nodo o recurso inexistente responde en español (antes «No Node matches the given query.») [12.1]
+- [x] fix(api): las rutas desconocidas de `/api/` responden 404 en JSON y no en HTML [12.2]
+- [x] test(e2e): pruebas de la API con Playwright (ingesta, duplicados simultáneos, autenticación y alertas) [12.3]
+- [x] docs(e2e): README de `e2e/` con cómo levantar el backend de pruebas y los tokens [12.4]
