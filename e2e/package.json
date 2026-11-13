@@ -1,0 +1,13 @@
+{
+  "name": "pyroguard-backend-e2e",
+  "private": true,
+  "description": "Pruebas de la API de PyroGuard con Playwright (contra un backend local)",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "@types/node": "^22.0.0"
+  }
+}

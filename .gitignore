@@ -27,3 +27,8 @@ staticfiles/
 .coverage
 htmlcov/
 .ruff_cache/
+
+# Pruebas E2E con Playwright
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
