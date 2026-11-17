@@ -1,7 +1,10 @@
 """Lectura de variables de entorno numéricas de `config/settings.py`."""
 import os
+import subprocess
+import sys
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase
 
@@ -40,3 +43,29 @@ class NonNegativeFloatSettingTests(SimpleTestCase):
                 self.assertRaisesMessage(ImproperlyConfigured, "PRUEBA_FLOAT"),
             ):
                 _env_non_negative_float("PRUEBA_FLOAT", 3.0)
+
+
+class SecretKeySettingTests(SimpleTestCase):
+    """Sin SECRET_KEY el backend solo arranca en desarrollo (DEBUG=True), con una clave aleatoria.
+
+    Se importa `config.settings` en un proceso aparte para no alterar los ajustes de esta ejecución.
+    """
+
+    def import_settings(self, debug):
+        # SECRET_KEY vacía (no ausente) para que un `.env` local no la rellene:
+        # load_dotenv no pisa variables ya definidas.
+        env = {**os.environ, "SECRET_KEY": "", "DEBUG": debug, "DATABASE_URL": "", "AI_SERVICE_URL": ""}
+        code = "import config.settings as s; print(len(s.SECRET_KEY))"
+        return subprocess.run(
+            [sys.executable, "-c", code], cwd=settings.BASE_DIR, env=env, capture_output=True, text=True, timeout=60
+        )
+
+    def test_production_without_secret_key_refuses_to_start(self):
+        result = self.import_settings("False")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SECRET_KEY es obligatoria", result.stderr)
+
+    def test_development_without_secret_key_generates_one(self):
+        result = self.import_settings("True")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertGreaterEqual(int(result.stdout.strip()), 50)
