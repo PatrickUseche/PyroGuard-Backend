@@ -80,3 +80,13 @@ class GoogleCredentialShapeTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["errors"], {"username": ["Ese nombre de usuario no está disponible."]})
+
+    def test_registering_an_inactive_account_is_forbidden(self):
+        inactive = get_user_model().objects.create_user("EdgeUser", email="edge@gmail.com", is_active=False)
+        with patch("api.views.create_google_user", return_value=inactive):
+            response = self.post_with_claims(
+                GOOD_CLAIMS, url_name="google_register", data={"credential": "mock", "username": "EdgeUser"}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("desactivada", str(response.data))

@@ -284,7 +284,7 @@ Resultado de la Fase 13: 891 pruebas en verde (antes 828), cobertura del 99 % de
 Ramas que seguían sin cubrir tras [13.46] y enlaces de la documentación de entrega.
 
 - [x] test(health): la vista `/api/health/` entrega `reason` al cliente cuando la IA no responde [13.51]
-- [ ] test(auth): registrarse con Google con una cuenta desactivada responde 403 [13.52]
+- [x] test(auth): registrarse con Google con una cuenta desactivada responde 403 [13.52]
 - [ ] test(alerts): filtros de `/alerts/` por `status` y `level` [13.53]
 - [ ] test(auth): tras un `IntegrityError`, un usuario del mismo correo ya vinculado a Google se devuelve [13.54]
 - [ ] test(queue): `drain` cuenta como omitidas las lecturas que otro proceso ya evaluó [13.55]
