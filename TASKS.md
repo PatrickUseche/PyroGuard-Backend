@@ -262,7 +262,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(graph): borrar un enlace cuyos nodos ya no existen reconstruye el grafo [13.36]
 - [x] test(config): `_env_positive_int` y `_env_non_negative_float` con valores inválidos [13.37]
 - [x] test(config): `SECRET_KEY` obligatoria con `DEBUG=False` [13.38]
-- [ ] test(models): representación en texto de `Notification`, `RiskAssessment` y `GoogleAccount` [13.39]
+- [x] test(models): representación en texto de `NotificationOutbox`, `RiskAssessment` y `GoogleAccount` [13.39]
 - [ ] test(serializers): `flame` rechaza enteros distintos de 0/1 y textos [13.40]
 - [ ] test(serializers): renombrar un nodo a un `node_id` existente se rechaza [13.41]
 - [ ] test(queue): ramas de la cola de evaluación sin cubrir [13.42]
