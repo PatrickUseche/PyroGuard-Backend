@@ -34,3 +34,10 @@ class RenderBlueprintTests(SimpleTestCase):
 
     def test_production_mode(self):
         self.assertEqual(self.env["DEBUG"]["value"], "False")
+
+    def test_ai_connection_is_configured_in_the_panel(self):
+        # La URL de la IA y su clave no se versionan: Render las pide en el panel (sync: false).
+        for key in ("AI_SERVICE_URL", "AI_API_KEY"):
+            with self.subTest(key=key):
+                self.assertIs(self.env[key].get("sync"), False)
+                self.assertNotIn("value", self.env[key])

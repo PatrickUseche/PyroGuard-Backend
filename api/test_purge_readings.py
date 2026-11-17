@@ -118,6 +118,5 @@ class PurgeReadingsTests(TestCase):
 
     def test_invalid_options_are_rejected(self):
         for options in ({"days": 0}, {"days": -3}, {"batch_size": 0}):
-            with self.subTest(options=options):
-                with self.assertRaises(CommandError):
-                    self.purge(**options)
+            with self.subTest(options=options), self.assertRaises(CommandError):
+                self.purge(**options)

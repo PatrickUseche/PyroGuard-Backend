@@ -10,6 +10,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
+from .cache_signals import graph_link_removed
 from .models import Node, NodeLink
 from .services.node_graph import node_graph
 
@@ -372,9 +373,22 @@ class FireNeighborWarningTests(APITestCase):
         self.assertEqual(warn_neighbors_of_fire("B"), {"A": 1, "C": 1, "D": 2})
 
     def test_a_failure_while_warning_does_not_lose_the_reading(self):
-        with patch("api.services.ingestion.warn_neighbors_of_fire", side_effect=RuntimeError("fallo")):
-            with self.assertLogs("api.readings", level="ERROR"):
-                response = self.ingest("A")
+        with (
+            patch("api.services.ingestion.warn_neighbors_of_fire", side_effect=RuntimeError("fallo")),
+            self.assertLogs("api.readings", level="ERROR"),
+        ):
+            response = self.ingest("A")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["risk_level"], "FIRE")
+
+
+class LinkRemovedWithoutNodesTests(TestCase):
+    def test_the_graph_is_rebuilt_when_the_link_nodes_are_gone(self):
+        # Enlace cuyos nodos ya se borraron (cascada): leer `node_a` lanza Node.DoesNotExist.
+        orphan = NodeLink(node_a_id=10_001, node_b_id=10_002)
+        with patch("api.cache_signals.node_graph") as graph:
+            graph_link_removed(sender=NodeLink, instance=orphan)
+
+        graph.clear.assert_called_once_with()
+        graph.link_removed.assert_not_called()

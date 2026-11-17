@@ -18,7 +18,12 @@ from .notifications.telegram_channel import TelegramNotifier
 
 
 def notification(**overrides):
-    values = dict(subject="Incendio en NODE-001", message="Humo y llama detectados.", node_id="NODE-001", priority=1)
+    values = {
+        "subject": "Incendio en NODE-001",
+        "message": "Humo y llama detectados.",
+        "node_id": "NODE-001",
+        "priority": 1,
+    }
     values.update(overrides)
     return Notification(**values)
 
@@ -83,17 +88,18 @@ class EmailNotifierTests(SimpleTestCase):
         self.assertTrue(EmailNotifier().is_configured())
 
     def test_a_smtp_failure_becomes_a_notification_error_without_details(self):
-        with patch("api.notifications.email_channel.send_mail", side_effect=OSError("clave=secreta")):
-            with self.assertRaises(NotificationError) as raised:
-                EmailNotifier().send(notification())
+        with (
+            patch("api.notifications.email_channel.send_mail", side_effect=OSError("clave=secreta")),
+            self.assertRaises(NotificationError) as raised,
+        ):
+            EmailNotifier().send(notification())
 
         self.assertIn("OSError", str(raised.exception))
         self.assertNotIn("secreta", str(raised.exception))
 
     def test_a_rejected_message_is_an_error(self):
-        with patch("api.notifications.email_channel.send_mail", return_value=0):
-            with self.assertRaises(NotificationError):
-                EmailNotifier().send(notification())
+        with patch("api.notifications.email_channel.send_mail", return_value=0), self.assertRaises(NotificationError):
+            EmailNotifier().send(notification())
 
 
 @override_settings(TELEGRAM_BOT_TOKEN="123:SECRETO", TELEGRAM_CHAT_ID="-1001")
@@ -121,18 +127,22 @@ class TelegramNotifierTests(SimpleTestCase):
 
     def test_a_network_failure_does_not_leak_the_token(self):
         error = requests.ConnectionError("fallo en https://api.telegram.org/bot123:SECRETO/sendMessage")
-        with patch("api.notifications.telegram_channel.requests.post", side_effect=error):
-            with self.assertRaises(NotificationError) as raised:
-                TelegramNotifier().send(notification())
+        with (
+            patch("api.notifications.telegram_channel.requests.post", side_effect=error),
+            self.assertRaises(NotificationError) as raised,
+        ):
+            TelegramNotifier().send(notification())
 
         self.assertIn("ConnectionError", str(raised.exception))
         self.assertNotIn("SECRETO", str(raised.exception))
         self.assertIsNone(raised.exception.__cause__)
 
     def test_a_non_200_answer_is_an_error_without_the_token(self):
-        with patch("api.notifications.telegram_channel.requests.post", return_value=MagicMock(status_code=401)):
-            with self.assertRaises(NotificationError) as raised:
-                TelegramNotifier().send(notification())
+        with (
+            patch("api.notifications.telegram_channel.requests.post", return_value=MagicMock(status_code=401)),
+            self.assertRaises(NotificationError) as raised,
+        ):
+            TelegramNotifier().send(notification())
 
         self.assertIn("401", str(raised.exception))
         self.assertNotIn("SECRETO", str(raised.exception))

@@ -38,6 +38,20 @@ class AIPrediction:
         return self.status == AIStatus.OK
 
 
+def predict_url() -> str:
+    """``{AI_SERVICE_URL}/predict``; la URL se guarda sin barra final (ver ``_env_service_url``)."""
+    return f"{settings.AI_SERVICE_URL}/predict"
+
+
+def health_url() -> str:
+    return f"{settings.AI_SERVICE_URL}/health"
+
+
+def auth_headers() -> dict:
+    """Cabecera ``X-AI-API-Key`` si hay clave configurada; sin clave la IA local no la exige."""
+    return {"X-AI-API-Key": settings.AI_API_KEY} if settings.AI_API_KEY else {}
+
+
 def build_payload(reading: SensorReading) -> dict:
     return {
         "node_id": reading.node.node_id,
@@ -55,15 +69,11 @@ def request_prediction(reading: SensorReading) -> AIPrediction:
     if not settings.AI_SERVICE_URL:
         return AIPrediction(status=AIStatus.DISABLED)
 
-    headers = {}
-    if settings.AI_API_KEY:
-        headers["X-AI-API-Key"] = settings.AI_API_KEY
-
     try:
         response = requests.post(
-            f"{settings.AI_SERVICE_URL}/predict",
+            predict_url(),
             json=build_payload(reading),
-            headers=headers,
+            headers=auth_headers(),
             timeout=(settings.AI_CONNECT_TIMEOUT, settings.AI_READ_TIMEOUT),
         )
     except requests.RequestException as error:

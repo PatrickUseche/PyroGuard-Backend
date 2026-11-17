@@ -21,7 +21,7 @@ class EmailNotifier(Notifier):
                 recipient_list=list(settings.NOTIFY_EMAIL_TO),
                 fail_silently=False,
             )
-        except Exception as error:  # noqa: BLE001 - SMTP puede fallar de muchas formas
+        except Exception as error:  # SMTP puede fallar de muchas formas
             raise NotificationError(f"No se pudo enviar el correo ({type(error).__name__}).") from None
         if not sent:
             raise NotificationError("El servidor de correo no aceptó el mensaje.")

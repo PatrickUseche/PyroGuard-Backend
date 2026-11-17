@@ -2,7 +2,7 @@
 import contextvars
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 #: Identificador de la petición en curso; "-" fuera de una petición.
 request_id_var = contextvars.ContextVar("request_id", default="-")
@@ -26,7 +26,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record):
         entry = {
-            "time": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(timespec="milliseconds"),
+            "time": datetime.fromtimestamp(record.created, tz=UTC).isoformat(timespec="milliseconds"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

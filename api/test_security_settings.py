@@ -20,7 +20,7 @@ SECURITY_ENV = [
 
 
 def build(debug, **env):
-    cleaned = {name: "" for name in SECURITY_ENV}
+    cleaned = dict.fromkeys(SECURITY_ENV, "")
     cleaned.update(env)
     with patch.dict(os.environ, cleaned):
         return build_security_settings(debug)
@@ -111,14 +111,14 @@ class EnvironmentOverrideTests(SimpleTestCase):
 class DeployedBehaviourTests(TestCase):
     """Con los ajustes de producción aplicados a Django (como en Render)."""
 
-    PRODUCTION = dict(
-        SECURE_SSL_REDIRECT=True,
-        SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
-        SECURE_HSTS_SECONDS=DEFAULT_HSTS_SECONDS,
-        SECURE_REDIRECT_EXEMPT=[r"^api/health/$"],
-        SESSION_COOKIE_SECURE=True,
-        ALLOWED_HOSTS=["testserver"],
-    )
+    PRODUCTION = {
+        "SECURE_SSL_REDIRECT": True,
+        "SECURE_PROXY_SSL_HEADER": ("HTTP_X_FORWARDED_PROTO", "https"),
+        "SECURE_HSTS_SECONDS": DEFAULT_HSTS_SECONDS,
+        "SECURE_REDIRECT_EXEMPT": [r"^api/health/$"],
+        "SESSION_COOKIE_SECURE": True,
+        "ALLOWED_HOSTS": ["testserver"],
+    }
 
     def test_plain_http_is_redirected_to_https(self):
         with override_settings(**self.PRODUCTION):

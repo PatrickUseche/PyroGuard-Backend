@@ -64,11 +64,11 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(structures): pruebas de las sumas de prefijos [2.21]
 - [x] feat(structures): filtro de Bloom para detectar duplicados [2.22]
 - [x] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
-- [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
-- [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
-- [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
-- [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
-- [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
+- [x] refactor(structures): renombrar `RingBuffer` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
+- [x] refactor(structures): renombrar `SlidingWindow` a `RollingExtremesWindow` [2.26]
+- [x] refactor(structures): renombrar `DoublyLinkedList` y `ListNode` a `BidirectionalChain` y `ChainLink` [2.27]
+- [x] refactor(structures): renombrar `LRUCache` a `LeastRecentlyUsedCache` [2.28]
+- [x] refactor(structures): renombrar `LinkedQueue` a `FirstInFirstOutQueue` [2.29]
 - [x] fix(structures): `RecentItemsRing.append` distingue «no expulsó nada» de «expulsó `None`» con un valor centinela (revisión con Lemmaly) [2.30]
 - [x] test(structures): pruebas del centinela de `RecentItemsRing` con elementos `None` guardados [2.31]
 - [x] docs(structures): complejidad esperada frente a peor caso en las estructuras con tabla hash, operaciones sin documentar y aviso de que no son seguras entre hilos (revisión con CLRS) [2.32]
@@ -216,3 +216,79 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] fix(api): las rutas desconocidas de `/api/` responden 404 en JSON y no en HTML [12.2]
 - [x] test(e2e): pruebas de la API con Playwright (ingesta, duplicados simultáneos, autenticación y alertas) [12.3]
 - [x] docs(e2e): README de `e2e/` con cómo levantar el backend de pruebas y los tokens [12.4]
+
+## Fase 13 — Entrega
+
+Revisión del 2026-11-17: la IA está desplegada en Vercel (`https://pyro-guard-ia.vercel.app`, responde `ok`), pero el
+`/api/health/` del backend en Render muestra `ai: unavailable`. Esta fase publica la URL real, da herramientas para
+diagnosticar ese estado (`reason` en `/health/` y el comando `check_ai`), amplía el lint, cubre con pruebas las ramas
+que la cobertura marcaba sin probar y cierra la documentación de la entrega.
+
+- [x] docs(tasks): restaurar los nombres originales en las tasks de renombrado [2.25]–[2.29] [13.1]
+- [x] docs(deploy): URL real de la IA en el README y en `render.yaml` [13.2]
+- [x] docs(deploy): dominio real del frontend en los ejemplos de `EXTRA_CORS_ORIGINS` [13.3]
+- [x] feat(health): `/health/` indica por qué la IA no está disponible (`reason`) [13.4]
+- [x] test(health): pruebas de `reason` (timeout, sin conexión y código HTTP) [13.5]
+- [x] docs(api): `reason` en el ejemplo OpenAPI de `/health/` y en el README [13.6]
+- [x] feat(health): timeout del `/health` de la IA configurable con `AI_HEALTH_TIMEOUT` [13.7]
+- [x] test(health): pruebas de `AI_HEALTH_TIMEOUT` (por defecto, valor propio e inválido) [13.8]
+- [x] docs(deploy): `AI_HEALTH_TIMEOUT` en el README y en `.env.example` [13.9]
+- [x] feat(ai): `predict_url` y `health_url` en el cliente de la IA para no repetir la construcción de URLs [13.10]
+- [x] feat(commands): `check_ai` comprueba `/health` y `/predict` de la IA con la configuración actual [13.11]
+- [x] test(commands): pruebas de `check_ai` (IA sana, clave incorrecta, IA caída y deshabilitada) [13.12]
+- [x] docs(deploy): diagnosticar `ai: unavailable` con `check_ai` [13.13]
+- [x] chore(deps): `requirements-dev.txt` incluye `requirements.txt` [13.14]
+- [x] docs: instalación de desarrollo con un solo `pip install -r requirements-dev.txt` [13.15]
+- [x] chore(lint): activar en ruff las reglas UP, SIM, C4, RET y RUF100 [13.16]
+- [x] style: `datetime.UTC` (ruff UP017) [13.17]
+- [x] style: quitar `noqa` que ya no hacen falta (ruff RUF100) [13.18]
+- [x] style: literales en lugar de `dict()` y comprensión innecesaria (ruff C408, C420) [13.19]
+- [x] style: retorno explícito al final de la función (ruff RET503) [13.20]
+- [x] style: unir los `with` anidados en `api/tests.py` (ruff SIM117) [13.21]
+- [x] style: unir los `with` anidados en las pruebas de salud, IA y cola de evaluación (ruff SIM117) [13.22]
+- [x] style: unir los `with` anidados en el resto de las pruebas (ruff SIM117) [13.23]
+- [x] test(auth): vincular Google cuando otra petición creó la cuenta a la vez (`IntegrityError`) [13.24]
+- [x] test(auth): sin cuenta tras el `IntegrityError` no se devuelve ningún usuario [13.25]
+- [x] test(auth): credencial de Google que no es un objeto o sin `sub` válido [13.26]
+- [x] test(auth): cuerpo que no es un objeto en el acceso y en el registro con Google [13.27]
+- [x] test(auth): nombre de usuario ocupado en una carrera al registrar (`IntegrityError`) [13.28]
+- [x] test(readings): fecha imposible en `from`/`to` responde 400 [13.29]
+- [x] test(readings): `range` y `order` inválidos responden 400 [13.30]
+- [x] test(alerts): filtros de `/alerts/` por `node_id`, `from` y `to` [13.31]
+- [x] test(alerts): `from` posterior a `to` en `/alerts/` responde 400 [13.32]
+- [x] test(ai): un código HTTP inesperado de la IA se trata como respuesta inválida [13.33]
+- [x] test(ingestion): si falla la actualización de `last_communication` la lectura se conserva [13.34]
+- [x] test(ingestion): un `IntegrityError` que no es un duplicado se propaga [13.35]
+- [x] test(graph): borrar un enlace cuyos nodos ya no existen reconstruye el grafo [13.36]
+- [x] test(config): `_env_positive_int` y `_env_non_negative_float` con valores inválidos [13.37]
+- [x] test(config): `SECRET_KEY` obligatoria con `DEBUG=False` [13.38]
+- [x] test(models): representación en texto de `NotificationOutbox`, `RiskAssessment` y `GoogleAccount` [13.39]
+- [x] test(serializers): `flame` rechaza enteros distintos de 0/1 y textos [13.40]
+- [x] test(serializers): editar un nodo sin cambiar su `node_id` es válido y crear uno repetido se rechaza [13.41]
+- [x] test(queue): ramas de la cola de evaluación sin cubrir [13.42]
+- [x] test(structures): operaciones de las estructuras que la cobertura marcaba sin probar [13.43]
+- [x] test(search): búsqueda por prefijo y caché del dashboard en sus casos límite [13.44]
+- [x] test(deploy): `render.yaml` deja `AI_SERVICE_URL` y `AI_API_KEY` como secretos del panel [13.45]
+- [x] chore(ci): subir `fail_under` de la cobertura al valor alcanzado [13.46]
+- [x] docs: `docs/ENTREGA.md` con el estado de cada repositorio y cómo demostrarlo [13.47]
+- [x] docs: `CHANGELOG.md` del backend [13.48]
+- [x] docs(readme): insignia del workflow de pruebas [13.49]
+- [x] docs(tasks): resultados de la Fase 13 (pruebas, cobertura y lint) [13.50]
+
+Resultado de la Fase 13: 891 pruebas en verde (antes 828; 898 tras la ampliación), cobertura del 99 % de líneas y ramas (mínimo del CI: 98 %) y
+`ruff check .` sin avisos con las reglas nuevas. Queda una acción fuera del código: poner en el panel de Render
+`AI_SERVICE_URL=https://pyro-guard-ia.vercel.app` y la misma `AI_API_KEY` de la IA, y comprobarlo con `check_ai`.
+
+### Ampliación de la Fase 13
+
+Ramas que seguían sin cubrir tras [13.46] y enlaces de la documentación de entrega.
+
+- [x] test(health): la vista `/api/health/` entrega `reason` al cliente cuando la IA no responde [13.51]
+- [x] test(auth): registrarse con Google con una cuenta desactivada responde 403 [13.52]
+- [x] test(alerts): filtros de `/alerts/` por `status` y `level` [13.53]
+- [x] test(auth): tras un `IntegrityError`, un usuario del mismo correo ya vinculado a Google se devuelve [13.54]
+- [x] test(queue): `drain` cuenta como omitidas las lecturas que otro proceso ya evaluó [13.55]
+- [x] test(queue): un fallo al avisar a los vecinos no deshace la evaluación diferida [13.56]
+- [x] test(config): `DATABASE_URL` selecciona PostgreSQL con conexiones persistentes [13.57]
+- [x] docs(entrega): enlazar `docs/ENTREGA.md` y `CHANGELOG.md` desde el README [13.58]
+- [x] docs(tasks): resultados finales de la Fase 13 [13.59] (898 pruebas y 99 % de cobertura; actualizado también `docs/ENTREGA.md`)

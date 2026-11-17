@@ -19,9 +19,8 @@ from .structures.rolling_extremes_window import RollingExtremesWindow
 class RecentItemsRingTests(SimpleTestCase):
     def test_capacity_must_be_a_positive_integer(self):
         for capacity in (0, -1, 1.5, "3", None, True):
-            with self.subTest(capacity=capacity):
-                with self.assertRaises(ValueError):
-                    RecentItemsRing(capacity)
+            with self.subTest(capacity=capacity), self.assertRaises(ValueError):
+                RecentItemsRing(capacity)
 
     def test_new_buffer_is_empty(self):
         buffer = RecentItemsRing(3)
@@ -88,9 +87,8 @@ class RecentItemsRingTests(SimpleTestCase):
         buffer.append("a")
 
         for index in (1, 3, -2, 99):
-            with self.subTest(index=index):
-                with self.assertRaises(IndexError):
-                    buffer[index]
+            with self.subTest(index=index), self.assertRaises(IndexError):
+                buffer[index]
         with self.assertRaises(TypeError):
             buffer["0"]
 
@@ -178,9 +176,8 @@ def brute_force_extremes(values, size):
 class RollingExtremesWindowTests(SimpleTestCase):
     def test_size_must_be_a_positive_integer(self):
         for size in (0, -3, 2.5, "4", None, True):
-            with self.subTest(size=size):
-                with self.assertRaises(ValueError):
-                    RollingExtremesWindow(size)
+            with self.subTest(size=size), self.assertRaises(ValueError):
+                RollingExtremesWindow(size)
 
     def test_empty_window_has_no_extremes(self):
         window = RollingExtremesWindow(3)
@@ -196,9 +193,8 @@ class RollingExtremesWindowTests(SimpleTestCase):
         window = RollingExtremesWindow(3)
 
         for value in ("5", None, True, [1], (2,)):
-            with self.subTest(value=value):
-                with self.assertRaises(TypeError):
-                    window.push(value)
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                window.push(value)
         with self.assertRaises(ValueError):
             window.push(float("nan"))
         self.assertTrue(window.is_empty())
@@ -341,9 +337,8 @@ class BidirectionalChainTests(SimpleTestCase):
             linked.front_node,
             linked.back_node,
         ):
-            with self.subTest(operation=operation.__name__):
-                with self.assertRaises(IndexError):
-                    operation()
+            with self.subTest(operation=operation.__name__), self.assertRaises(IndexError):
+                operation()
 
     def test_push_front_and_push_back_keep_order_in_both_directions(self):
         linked = BidirectionalChain()
@@ -400,9 +395,8 @@ class BidirectionalChainTests(SimpleTestCase):
         linked.remove(node)
 
         for operation in (linked.remove, linked.move_to_front, linked.move_to_back):
-            with self.subTest(operation=operation.__name__):
-                with self.assertRaises(ValueError):
-                    operation(node)
+            with self.subTest(operation=operation.__name__), self.assertRaises(ValueError):
+                operation(node)
 
     def test_node_from_another_list_or_a_plain_object_is_rejected(self):
         linked, _ = self.build(1)
@@ -492,9 +486,8 @@ class BidirectionalChainTests(SimpleTestCase):
 class LeastRecentlyUsedCacheTests(SimpleTestCase):
     def test_capacity_must_be_a_positive_integer(self):
         for capacity in (0, -1, 2.5, "3", None, True):
-            with self.subTest(capacity=capacity):
-                with self.assertRaises(ValueError):
-                    LeastRecentlyUsedCache(capacity)
+            with self.subTest(capacity=capacity), self.assertRaises(ValueError):
+                LeastRecentlyUsedCache(capacity)
 
     def test_new_cache_is_empty(self):
         cache = LeastRecentlyUsedCache(2)
@@ -886,9 +879,8 @@ class PriorityMinHeapTests(SimpleTestCase):
 
     def test_smallest_rejects_an_invalid_k(self):
         for k in (-1, 1.5, "2", None, True):
-            with self.subTest(k=k):
-                with self.assertRaises(ValueError):
-                    PriorityMinHeap.smallest([1, 2], k)
+            with self.subTest(k=k), self.assertRaises(ValueError):
+                PriorityMinHeap.smallest([1, 2], k)
 
 
 class PrefixTrieTests(SimpleTestCase):
@@ -960,9 +952,8 @@ class PrefixTrieTests(SimpleTestCase):
 
     def test_invalid_limit_is_rejected(self):
         for limit in (-1, 1.5, "2", True):
-            with self.subTest(limit=limit):
-                with self.assertRaises(ValueError):
-                    self.trie.with_prefix("nodo", limit=limit)
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                self.trie.with_prefix("nodo", limit=limit)
 
     def test_delete_removes_only_that_word(self):
         self.assertTrue(self.trie.delete("nodo-1"))
@@ -1120,9 +1111,8 @@ class AdjacencyGraphTests(SimpleTestCase):
         graph = self.build([("a", "b")])
 
         for limit in (-1, 1.5, "2", True):
-            with self.subTest(limit=limit):
-                with self.assertRaises(ValueError):
-                    graph.reachable_within("a", limit)
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                graph.reachable_within("a", limit)
 
     def test_bfs_matches_a_reference_on_random_graphs(self):
         rng = random.Random(5)
@@ -1306,9 +1296,8 @@ class PrefixSumsTests(SimpleTestCase):
         sums = PrefixSums([1, 2, 3])
 
         for start, stop in ((0.5, 2), (0, "2"), (None, 2), (True, 2)):
-            with self.subTest(start=start, stop=stop):
-                with self.assertRaises(TypeError):
-                    sums.range_sum(start, stop)
+            with self.subTest(start=start, stop=stop), self.assertRaises(TypeError):
+                sums.range_sum(start, stop)
 
     def test_append_extends_the_ranges(self):
         sums = PrefixSums([1, 2])
@@ -1329,9 +1318,8 @@ class PrefixSumsTests(SimpleTestCase):
         sums = PrefixSums()
 
         for value in ("5", None, True, [1]):
-            with self.subTest(value=value):
-                with self.assertRaises(TypeError):
-                    sums.append(value)
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                sums.append(value)
         with self.assertRaises(ValueError):
             sums.append(float("nan"))
         self.assertEqual(len(sums), 0)
@@ -1363,13 +1351,11 @@ class PrefixSumsTests(SimpleTestCase):
 class DuplicateBloomFilterTests(SimpleTestCase):
     def test_parameters_are_validated(self):
         for expected in (0, -5, 1.5, "10", None, True):
-            with self.subTest(expected=expected):
-                with self.assertRaises(ValueError):
-                    DuplicateBloomFilter(expected)
+            with self.subTest(expected=expected), self.assertRaises(ValueError):
+                DuplicateBloomFilter(expected)
         for rate in (0, 1, -0.1, 2, "0.1", None, True):
-            with self.subTest(rate=rate):
-                with self.assertRaises(ValueError):
-                    DuplicateBloomFilter(100, rate)
+            with self.subTest(rate=rate), self.assertRaises(ValueError):
+                DuplicateBloomFilter(100, rate)
 
     def test_size_follows_the_standard_formulas(self):
         bloom = DuplicateBloomFilter(1000, 0.01)

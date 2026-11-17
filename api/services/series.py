@@ -9,7 +9,7 @@ Para cualquier intervalo de tiempo:
 Así, una serie con ``b`` tramos (por ejemplo, un punto cada 5 minutos) se resume en
 O(n + b log n) en lugar de recorrer los datos una vez por tramo (O(n · b)).
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from api.structures.prefix_sums import PrefixSums
 from api.structures.priority_min_heap import PriorityMinHeap
@@ -94,7 +94,7 @@ class TimeSeries:
         if step_seconds < 1:
             raise ValueError("El tramo debe durar al menos un segundo.")
         step = timedelta(seconds=step_seconds)
-        origin = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        origin = datetime(1970, 1, 1, tzinfo=UTC)
         first_start = origin + step * ((start - origin) // step)
         if (end - first_start) / step > MAX_BUCKETS:
             raise ValueError(f"El intervalo necesita más de {MAX_BUCKETS} tramos.")

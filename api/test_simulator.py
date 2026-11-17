@@ -14,10 +14,10 @@ from api.services.risk_rules import SMOKE_FIRE, SMOKE_WARNING, TEMP_FIRE, TEMP_W
 
 
 def make_args(**overrides):
-    values = dict(
-        url="http://api.test/api/readings/", node="NODE-001", nodes=1, prefix="SIM-",
-        interval=5.0, scenario="normal", api_key="clave", seed=None,
-    )
+    values = {
+        "url": "http://api.test/api/readings/", "node": "NODE-001", "nodes": 1, "prefix": "SIM-",
+        "interval": 5.0, "scenario": "normal", "api_key": "clave", "seed": None,
+    }
     values.update(overrides)
     return SimpleNamespace(**values)
 
@@ -54,9 +54,8 @@ class ParseArgsTests(SimpleTestCase):
     def test_invalid_values_are_rejected(self):
         for argv in (["--interval", "0"], ["--interval", "-1"], ["--nodes", "0"], ["--nodes", "101"],
                      ["--scenario", "otro"], ["--nodes", "x"]):
-            with self.subTest(argv=argv):
-                with patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
-                    parse(*argv)
+            with self.subTest(argv=argv), patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
+                parse(*argv)
 
 
 class NodeIdsTests(SimpleTestCase):

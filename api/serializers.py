@@ -15,7 +15,8 @@ class JsonBooleanField(serializers.BooleanField):
             return data
         if type(data) is int and data in (0, 1):
             return bool(data)
-        self.fail("invalid", input=data)
+        # `fail` lanza ValidationError; el return explícito deja claro que no hay otro camino.
+        return self.fail("invalid", input=data)
 
 
 class GoogleCredentialField(serializers.CharField):

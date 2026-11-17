@@ -348,6 +348,9 @@ AI_SERVICE_URL = _env_service_url("AI_SERVICE_URL")
 # para dar tiempo a la inferencia.
 AI_CONNECT_TIMEOUT = _env_positive_float("AI_CONNECT_TIMEOUT", 3.0)
 AI_READ_TIMEOUT = _env_positive_float("AI_READ_TIMEOUT", 10.0)
+# Límite de GET {AI_SERVICE_URL}/health dentro de /api/health/: corto para no frenar al monitor ni al frontend.
+# Súbelo si la IA tarda en despertar (arranque en frío de Vercel o Render) y /api/health/ muestra reason=timeout.
+AI_HEALTH_TIMEOUT = _env_positive_float("AI_HEALTH_TIMEOUT", 2.0)
 AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 # Con True la ingesta no espera a la IA: guarda la lectura con las reglas y deja la
 # evaluación de la IA pendiente para `manage.py drain_ai_queue`.

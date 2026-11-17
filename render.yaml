@@ -25,7 +25,7 @@ services:
       - key: CLIENT_IP_HEADER
         value: CF-Connecting-IP
       # Se rellenan a mano en el panel de Render (dependen de URLs que aún no existen o son secretos):
-      - key: EXTRA_CORS_ORIGINS   # dominio del frontend, p. ej. https://pyroguard.vercel.app
+      - key: EXTRA_CORS_ORIGINS   # dominio propio del frontend; https://pyro-guard-frontend.vercel.app ya está permitido
         sync: false
       - key: EXTRA_ALLOWED_HOSTS  # solo si usas un dominio propio; *.onrender.com ya está permitido
         sync: false
@@ -36,7 +36,7 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
-      - key: AI_SERVICE_URL       # URL del servicio pyroguard-ia, sin barra final
+      - key: AI_SERVICE_URL       # URL de PyroGuard-IA sin barra final: https://pyro-guard-ia.vercel.app
         sync: false
       - key: AI_API_KEY           # igual a la AI_API_KEY del servicio de IA
         sync: false

@@ -1,11 +1,16 @@
 # PyroGuard Backend
 
+[![Tests](https://github.com/PatrickUseche/PyroGuard-Backend/actions/workflows/tests.yml/badge.svg)](https://github.com/PatrickUseche/PyroGuard-Backend/actions/workflows/tests.yml)
+
 API Django REST Framework para recibir lecturas IoT, clasificarlas con reglas,
 mantener alertas persistentes y exponer el estado de nodos para el dashboard.
 El riesgo se evalúa con reglas deterministas y, si `AI_SERVICE_URL` está
 configurada, con la probabilidad del servicio PyroGuard-IA, que solo puede
 elevar el nivel. Si la IA no responde, la lectura se guarda y se evalúa solo
 con reglas.
+
+**Entrega:** el estado de los tres repositorios, las URL desplegadas y cómo demostrar cada parte están en
+[`docs/ENTREGA.md`](docs/ENTREGA.md); el resumen de cambios por fase, en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Arquitectura
 
@@ -75,6 +80,9 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
+
+Para desarrollar (ruff y coverage incluidos) basta `python -m pip install -r requirements-dev.txt`, que ya
+instala también `requirements.txt`.
 
 Edita `.env` para desarrollo local. `DEBUG=True` y `DATABASE_URL=` seleccionan
 SQLite. Aplica las migraciones y crea un usuario administrador:
@@ -182,6 +190,7 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
+| `AI_HEALTH_TIMEOUT` | Segundos máximos de la consulta a `/health` de la IA dentro de `/api/health/` (> 0) | `2.0` |
 | `AI_ASYNC_EVALUATION` | Si es `True`, la ingesta no espera a la IA: deja la evaluación pendiente para `drain_ai_queue` (ver «Evaluación diferida de la IA») | `False` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
@@ -289,7 +298,7 @@ Configura `GOOGLE_CLIENT_ID` con un OAuth Client ID de tipo aplicación web:
    **Aplicación web**.
 4. En **Orígenes autorizados de JavaScript**, agrega `http://localhost:4200`
    para desarrollo y el origen exacto de producción, por ejemplo
-   `https://mi-dashboard.vercel.app` (sin barra final).
+   `https://pyro-guard-frontend.vercel.app` (sin barra final).
 5. Copia el Client ID a la variable `GOOGLE_CLIENT_ID` del entorno del backend.
    El Client ID es público. **No se usa ni se guarda un Client Secret**.
 
@@ -728,7 +737,7 @@ modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 
 ### Lint y cobertura
 
-Las herramientas de desarrollo están en `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
+Las herramientas de desarrollo están en `requirements-dev.txt` (`pip install -r requirements-dev.txt`, que incluye `requirements.txt`):
 
 ```powershell
 ruff check .                       # lint (configuración en ruff.toml); ruff check . --fix corrige lo automático
@@ -737,17 +746,18 @@ coverage report                    # resumen en consola; coverage html genera ht
 ```
 
 El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertura en el resumen del job;
-**falla si la cobertura baja de 90 %** (`fail_under` en `.coveragerc`).
+**falla si la cobertura baja de 98 %** (`fail_under` en `.coveragerc`).
 
 ## Despliegue en Render
 
 ### Desde cero con el Blueprint (`render.yaml`)
 
-1. **IA primero** (opcional): despliega `PyroGuard-IA` (trae su propio `render.yaml`) y anota su URL.
+1. **IA primero** (opcional): la de producción ya está en `https://pyro-guard-ia.vercel.app`; si despliegas otra,
+   `PyroGuard-IA` trae su propio `render.yaml` y `vercel.json`.
 2. En Render: **New → Blueprint**, elige este repositorio y la rama `main`. Render crea el servicio
    `pyroguard-backend` y la base `pyroguard-db`, y genera `SECRET_KEY` e `INGEST_API_KEY` solos.
 3. Render te pedirá los valores de las variables marcadas `sync: false`:
-   - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyroguard.vercel.app`).
+   - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyro-guard-frontend.vercel.app`; ese dominio y los `*.vercel.app` ya están permitidos en `settings.py`).
    - `AI_SERVICE_URL` y `AI_API_KEY`: los de la IA; déjalas vacías si aún no la tienes.
    - `EXTRA_ALLOWED_HOSTS`: solo si usas un dominio propio.
    - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD`: tu usuario del admin
@@ -792,31 +802,44 @@ haya caducado: el PostgreSQL gratuito se elimina tras unos 30 días si no se pas
 6. Confirmar que el origen del frontend esté permitido por CORS y que el host
 	 de la API esté permitido en `ALLOWED_HOSTS`.
 
-### Conectar con PyroGuard-IA en Render
+### Conectar con PyroGuard-IA
 
-La IA es un servicio web aparte (su repositorio trae `render.yaml`, con `healthCheckPath: /health`). El backend
+La IA de producción está desplegada en **Vercel** en `https://pyro-guard-ia.vercel.app` (su repositorio también
+trae `render.yaml` por si se despliega en Render). El backend
 la consulta por HTTP y, si no responde, sigue funcionando solo con reglas. Para conectarla:
 
 | Variable (backend) | Valor | Notas |
 | --- | --- | --- |
-| `AI_SERVICE_URL` | `https://<servicio-ia>.onrender.com` | URL pública del servicio de IA **sin barra final**. Vacía = IA desactivada (se evalúa solo con reglas). Debe empezar por `http://` o `https://`, si no el backend no arranca |
+| `AI_SERVICE_URL` | `https://pyro-guard-ia.vercel.app` | URL pública del servicio de IA **sin barra final**. Vacía = IA desactivada (se evalúa solo con reglas). Debe empezar por `http://` o `https://`, si no el backend no arranca |
 | `AI_API_KEY` | una clave larga y aleatoria | Se envía como `X-AI-API-Key`. **Debe ser idéntica a la `AI_API_KEY` configurada en el servicio de IA**; si no coinciden, la IA responde 401/403 y las lecturas quedan con `ai.status = REJECTED` |
 | `AI_CONNECT_TIMEOUT` | `3.0` (por defecto) | Segundos para establecer la conexión; detecta una IA caída rápido |
 | `AI_READ_TIMEOUT` | `10.0` (por defecto) | Segundos de espera de la inferencia una vez conectado |
+| `AI_HEALTH_TIMEOUT` | `2.0` (por defecto) | Límite de la consulta a la IA en `/api/health/`; súbelo (p. ej. `10`) si muestra `reason: timeout` por el arranque en frío |
 
 Puntos a tener en cuenta:
 
 - **Arranque en frío:** en los planes gratuitos Render duerme el servicio de IA tras unos minutos sin tráfico. La
   primera lectura después tarda lo que tarde en despertar y puede agotar `AI_READ_TIMEOUT`: queda con
   `ai.status = UNAVAILABLE` y se evalúa solo con reglas. No se pierde, pero ese caso hay que tenerlo presente al
-  medir. Un monitor que consulte `GET /api/health/` también despierta la IA (la consulta con un timeout de 2 s).
+  medir. Un monitor que consulte `GET /api/health/` también despierta la IA (la consulta con un timeout de `AI_HEALTH_TIMEOUT`, 2 s por defecto).
 - **La ingesta espera a la IA:** hasta `AI_CONNECT_TIMEOUT + AI_READ_TIMEOUT` (13 s por defecto) por lectura si la
   IA está lenta o caída. Si los sensores no pueden esperar tanto, baja los timeouts o activa
   `AI_ASYNC_EVALUATION=True` (ver «Evaluación diferida de la IA») y programa `drain_ai_queue`.
 - **Secretos:** `AI_API_KEY` se define en el panel de Render de cada servicio, nunca en el repositorio.
 - **Comprobación:** `GET https://<backend>.onrender.com/api/health/` debe mostrar `"ai": {"status": "ok"}`;
   `unavailable` indica URL equivocada, servicio dormido o caído, y `disabled` que `AI_SERVICE_URL` está vacía.
+  Con `unavailable`, el campo `reason` dice el motivo: `timeout` (la IA tardó más que el límite, típico del arranque
+  en frío), `connection_error` (dominio o URL equivocados, o servicio apagado), `http_<código>` (la IA respondió con
+  error; `http_404` suele ser una URL con una ruta de más) o `request_error`.
   Una lectura de prueba debe devolver `ai.status = OK` y `ai.model_version`.
+- **Diagnóstico con `check_ai`:** `python manage.py check_ai` (en Render: pestaña *Shell*, o localmente con las mismas
+  variables) consulta `/health` y hace un `POST /predict` de ejemplo con `AI_SERVICE_URL` y `AI_API_KEY`, sin
+  guardar nada. Dice qué falla: URL deshabilitada o equivocada, IA sin modelo, o clave distinta en los dos servicios
+  (`401/403`). Nunca imprime la clave. Termina con código distinto de 0 si algo falla.
+
+  ```bash
+  python manage.py check_ai
+  ```
 
 No ejecutes migraciones de producción desde una terminal local sin confirmar
 explícitamente la conexión seleccionada.
@@ -830,7 +853,7 @@ Events y compara el commit servido con `main`.
 Antes de fusionar a `main` (Render despliega desde ahí) o de cambiar variables en el panel:
 
 **Código**
-- [ ] El CI está en verde (`ruff`, migraciones al día, pruebas y cobertura ≥ 90 %).
+- [ ] El CI está en verde (`ruff`, migraciones al día, pruebas y cobertura ≥ 98 %).
 - [ ] `python manage.py makemigrations --check --dry-run` no detecta migraciones pendientes y las nuevas migraciones
       se probaron contra una copia de la base (no contra producción).
 - [ ] `python manage.py check --deploy` con `DEBUG=False` solo muestra las dos advertencias asumidas (`W005`, `W021`).

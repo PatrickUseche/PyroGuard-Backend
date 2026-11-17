@@ -7,7 +7,7 @@ deshace al final, así que no deja datos en la base.
 import random
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from django.db import transaction
 from django.db.models import Avg, Max, Min, Q
@@ -25,7 +25,7 @@ from api.structures.rolling_extremes_window import RollingExtremesWindow
 
 WINDOW = 50
 TOP_K = 10
-START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+START = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 @dataclass
