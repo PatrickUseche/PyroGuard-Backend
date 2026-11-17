@@ -232,7 +232,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] docs(api): `reason` en el ejemplo OpenAPI de `/health/` y en el README [13.6]
 - [x] feat(health): timeout del `/health` de la IA configurable con `AI_HEALTH_TIMEOUT` [13.7]
 - [x] test(health): pruebas de `AI_HEALTH_TIMEOUT` (por defecto, valor propio e inválido) [13.8]
-- [ ] docs(deploy): `AI_HEALTH_TIMEOUT` en el README y en `.env.example` [13.9]
+- [x] docs(deploy): `AI_HEALTH_TIMEOUT` en el README y en `.env.example` [13.9]
 - [ ] feat(ai): `predict_url` y `health_url` en el cliente de la IA para no repetir la construcción de URLs [13.10]
 - [ ] feat(commands): `check_ai` comprueba `/health` y `/predict` de la IA con la configuración actual [13.11]
 - [ ] test(commands): pruebas de `check_ai` (IA sana, clave incorrecta, IA caída y deshabilitada) [13.12]

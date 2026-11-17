@@ -182,6 +182,7 @@ excluye secretos y bases locales (`.dockerignore`). Los comandos programados (`s
 | `AI_SERVICE_URL` | URL base de PyroGuard-IA; vacía deshabilita la IA | `http://127.0.0.1:8001` |
 | `AI_CONNECT_TIMEOUT` | Segundos máximos para conectar con la IA (> 0) | `3.0` |
 | `AI_READ_TIMEOUT` | Segundos máximos de espera de la inferencia (> 0) | `10.0` |
+| `AI_HEALTH_TIMEOUT` | Segundos máximos de la consulta a `/health` de la IA dentro de `/api/health/` (> 0) | `2.0` |
 | `AI_ASYNC_EVALUATION` | Si es `True`, la ingesta no espera a la IA: deja la evaluación pendiente para `drain_ai_queue` (ver «Evaluación diferida de la IA») | `False` |
 | `AI_API_KEY` | Clave enviada en `X-AI-API-Key`; igual a la del servicio IA | Vacía en local |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
@@ -805,13 +806,14 @@ la consulta por HTTP y, si no responde, sigue funcionando solo con reglas. Para 
 | `AI_API_KEY` | una clave larga y aleatoria | Se envía como `X-AI-API-Key`. **Debe ser idéntica a la `AI_API_KEY` configurada en el servicio de IA**; si no coinciden, la IA responde 401/403 y las lecturas quedan con `ai.status = REJECTED` |
 | `AI_CONNECT_TIMEOUT` | `3.0` (por defecto) | Segundos para establecer la conexión; detecta una IA caída rápido |
 | `AI_READ_TIMEOUT` | `10.0` (por defecto) | Segundos de espera de la inferencia una vez conectado |
+| `AI_HEALTH_TIMEOUT` | `2.0` (por defecto) | Límite de la consulta a la IA en `/api/health/`; súbelo (p. ej. `10`) si muestra `reason: timeout` por el arranque en frío |
 
 Puntos a tener en cuenta:
 
 - **Arranque en frío:** en los planes gratuitos Render duerme el servicio de IA tras unos minutos sin tráfico. La
   primera lectura después tarda lo que tarde en despertar y puede agotar `AI_READ_TIMEOUT`: queda con
   `ai.status = UNAVAILABLE` y se evalúa solo con reglas. No se pierde, pero ese caso hay que tenerlo presente al
-  medir. Un monitor que consulte `GET /api/health/` también despierta la IA (la consulta con un timeout de 2 s).
+  medir. Un monitor que consulte `GET /api/health/` también despierta la IA (la consulta con un timeout de `AI_HEALTH_TIMEOUT`, 2 s por defecto).
 - **La ingesta espera a la IA:** hasta `AI_CONNECT_TIMEOUT + AI_READ_TIMEOUT` (13 s por defecto) por lectura si la
   IA está lenta o caída. Si los sensores no pueden esperar tanto, baja los timeouts o activa
   `AI_ASYNC_EVALUATION=True` (ver «Evaluación diferida de la IA») y programa `drain_ai_queue`.
