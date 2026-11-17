@@ -128,3 +128,34 @@ class HealthEndpointTests(TestCase):
 
         self.assertEqual(code, 200)
         self.assertEqual(body["status"], "ok")
+
+
+@override_settings(AI_SERVICE_URL="http://ia.test")
+class AIUnavailableReasonTests(TestCase):
+    """`reason` dice por qué la IA no está disponible, sin exponer la URL ni el error completo."""
+
+    def check_with(self, **patch_kwargs):
+        with patch("api.services.health.requests.get", **patch_kwargs):
+            with self.assertLogs("api.health", level="WARNING"):
+                return check_ai()
+
+    def test_a_timeout_is_reported_as_timeout(self):
+        for error in (requests.ConnectTimeout("lenta"), requests.ReadTimeout("lenta")):
+            with self.subTest(error=type(error).__name__):
+                self.assertEqual(self.check_with(side_effect=error), {"status": "unavailable", "reason": "timeout"})
+
+    def test_a_refused_connection_is_reported_as_connection_error(self):
+        result = self.check_with(side_effect=requests.ConnectionError("http://ia.test rechazó la conexión"))
+        self.assertEqual(result, {"status": "unavailable", "reason": "connection_error"})
+
+    def test_other_request_errors_are_generic(self):
+        result = self.check_with(side_effect=requests.TooManyRedirects("bucle"))
+        self.assertEqual(result, {"status": "unavailable", "reason": "request_error"})
+
+    def test_an_http_error_reports_its_status_code(self):
+        result = self.check_with(return_value=MagicMock(status_code=404))
+        self.assertEqual(result, {"status": "unavailable", "reason": "http_404"})
+
+    def test_an_ai_that_works_has_no_reason(self):
+        with patch("api.services.health.requests.get", return_value=MagicMock(status_code=200)):
+            self.assertNotIn("reason", check_ai())
