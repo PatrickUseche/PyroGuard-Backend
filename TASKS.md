@@ -272,5 +272,5 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] chore(ci): subir `fail_under` de la cobertura al valor alcanzado [13.46]
 - [x] docs: `docs/ENTREGA.md` con el estado de cada repositorio y cómo demostrarlo [13.47]
 - [x] docs: `CHANGELOG.md` del backend [13.48]
-- [ ] docs(readme): insignia del workflow de pruebas [13.49]
+- [x] docs(readme): insignia del workflow de pruebas [13.49]
 - [ ] docs(tasks): resultados de la Fase 13 (pruebas, cobertura y lint) [13.50]

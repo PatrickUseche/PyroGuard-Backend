@@ -1,5 +1,7 @@
 # PyroGuard Backend
 
+[![Tests](https://github.com/PatrickUseche/PyroGuard-Backend/actions/workflows/tests.yml/badge.svg)](https://github.com/PatrickUseche/PyroGuard-Backend/actions/workflows/tests.yml)
+
 API Django REST Framework para recibir lecturas IoT, clasificarlas con reglas,
 mantener alertas persistentes y exponer el estado de nodos para el dashboard.
 El riesgo se evalúa con reglas deterministas y, si `AI_SERVICE_URL` está
