@@ -156,7 +156,7 @@ class ConcurrentUseTests(TransactionTestCase):
         def guarded(index):
             try:
                 target(index)
-            except Exception as error:  # noqa: BLE001 - se informa al final
+            except Exception as error:  # se informa al final
                 errors.append(error)
 
         threads = [threading.Thread(target=guarded, args=(index,)) for index in range(count)]

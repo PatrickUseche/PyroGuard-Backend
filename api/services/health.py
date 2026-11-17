@@ -17,7 +17,7 @@ def check_database():
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
-    except Exception as error:  # noqa: BLE001 - cualquier fallo de la base significa "caída"
+    except Exception as error:  # cualquier fallo de la base significa "caída"
         logger.error("La base de datos no responde (%s).", type(error).__name__)
         return {"status": "down"}
     return {"status": "ok", "latency_ms": round((time.perf_counter() - started) * 1000, 1)}
