@@ -71,3 +71,12 @@ class GoogleCredentialShapeTests(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn("objeto", str(response.data))
                 verifier.assert_not_called()
+
+    def test_a_username_taken_by_a_concurrent_registration_is_reported(self):
+        with patch("api.views.create_google_user", side_effect=IntegrityError("username duplicado")):
+            response = self.post_with_claims(
+                GOOD_CLAIMS, url_name="google_register", data={"credential": "mock", "username": "EdgeUser"}
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["errors"], {"username": ["Ese nombre de usuario no está disponible."]})
