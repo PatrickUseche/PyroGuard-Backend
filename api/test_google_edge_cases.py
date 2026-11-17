@@ -24,3 +24,16 @@ class ConcurrentGoogleLinkingTests(TestCase):
             user = google_auth.get_existing_user("ada@gmail.com", "sub-ada")
 
         self.assertEqual(user, self.user)
+
+    def test_without_an_account_after_the_conflict_no_user_is_returned(self):
+        GoogleAccount.objects.create(user=get_user_model().objects.create_user("otra"), google_sub="sub-otra")
+        with (
+            patch.object(google_auth, "_find_account", return_value=None),
+            patch.object(GoogleAccount.objects, "create", side_effect=IntegrityError("google_sub duplicado")),
+        ):
+            self.assertIsNone(google_auth.get_existing_user("ada@gmail.com", "sub-ada"))
+
+    def test_an_unknown_email_after_the_conflict_returns_no_user(self):
+        conflict = IntegrityError("carrera")
+        with patch.object(google_auth, "_find_account", side_effect=[conflict, None]):
+            self.assertIsNone(google_auth.get_existing_user("nadie@gmail.com", "sub-nadie"))
