@@ -24,8 +24,8 @@ no llega a la URL configurada. Hay que revisar en *Environment* del servicio `py
 
 | Repositorio | `TASKS.md` | Pruebas | Lint |
 | --- | --- | --- | --- |
-| PyroGuard-Backend | Fases 1–13 completas | 891 pruebas, 99 % de cobertura (mínimo del CI: 98 %) | ruff con E, W, F, I, B, UP, SIM, C4, RET y RUF100 |
-| PyroGuard-IA | Fases 0–6 completas (5.4: desplegada en Vercel) | 264 pruebas, 92 % de cobertura | ruff con E, W, F, I, B, UP y SIM |
+| PyroGuard-Backend | Fases 1–13 completas | 898 pruebas, 99 % de cobertura (mínimo del CI: 98 %) | ruff con E, W, F, I, B, UP, SIM, C4, RET y RUF100 |
+| PyroGuard-IA | Fases 0–6 completas (5.4: desplegada en Vercel) | 267 pruebas, 92 % de cobertura | ruff con E, W, F, I, B, UP y SIM |
 | PyroGuard-Frontend | Fases 0–9 completas; 4.6–4.9 se hicieron como 6.1–6.4 | 148 pruebas, `ng build`, ESLint y Prettier en verde | angular-eslint |
 
 ## Cómo demostrarlo

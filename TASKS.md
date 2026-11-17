@@ -275,7 +275,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] docs(readme): insignia del workflow de pruebas [13.49]
 - [x] docs(tasks): resultados de la Fase 13 (pruebas, cobertura y lint) [13.50]
 
-Resultado de la Fase 13: 891 pruebas en verde (antes 828), cobertura del 99 % de líneas y ramas (mínimo del CI: 98 %) y
+Resultado de la Fase 13: 891 pruebas en verde (antes 828; 898 tras la ampliación), cobertura del 99 % de líneas y ramas (mínimo del CI: 98 %) y
 `ruff check .` sin avisos con las reglas nuevas. Queda una acción fuera del código: poner en el panel de Render
 `AI_SERVICE_URL=https://pyro-guard-ia.vercel.app` y la misma `AI_API_KEY` de la IA, y comprobarlo con `check_ai`.
 
@@ -291,4 +291,4 @@ Ramas que seguían sin cubrir tras [13.46] y enlaces de la documentación de ent
 - [x] test(queue): un fallo al avisar a los vecinos no deshace la evaluación diferida [13.56]
 - [x] test(config): `DATABASE_URL` selecciona PostgreSQL con conexiones persistentes [13.57]
 - [x] docs(entrega): enlazar `docs/ENTREGA.md` y `CHANGELOG.md` desde el README [13.58]
-- [ ] docs(tasks): resultados finales de la Fase 13 [13.59]
+- [x] docs(tasks): resultados finales de la Fase 13 [13.59] (898 pruebas y 99 % de cobertura; actualizado también `docs/ENTREGA.md`)
