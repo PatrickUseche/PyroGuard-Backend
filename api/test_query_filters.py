@@ -86,3 +86,10 @@ class AlertFilterTests(APITestCase):
     def test_an_invalid_date_is_a_bad_request(self):
         response = self.client.get(reverse("alert_list"), {"to": "ayer"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_filter_by_status_and_level(self):
+        Alert.objects.filter(pk=self.old.pk).update(status=Alert.Status.CLOSED, level=Alert.Level.FIRE)
+        self.assertEqual(self.ids(status=Alert.Status.CLOSED), {self.old.pk})
+        self.assertEqual(self.ids(level=Alert.Level.FIRE), {self.old.pk})
+        self.assertEqual(self.ids(level=Alert.Level.WARNING), {self.recent_north.pk, self.recent_south.pk})
+        self.assertEqual(self.ids(status=Alert.Status.CLOSED, level=Alert.Level.WARNING), set())
