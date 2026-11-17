@@ -1,4 +1,5 @@
 """Lectura de variables de entorno numéricas de `config/settings.py`."""
+import json
 import os
 import subprocess
 import sys
@@ -69,3 +70,25 @@ class SecretKeySettingTests(SimpleTestCase):
         result = self.import_settings("True")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertGreaterEqual(int(result.stdout.strip()), 50)
+
+
+class DatabaseUrlSettingTests(SimpleTestCase):
+    def test_database_url_selects_postgres_with_persistent_connections(self):
+        env = {
+            **os.environ,
+            "DEBUG": "True",
+            "DATABASE_URL": "postgres://usuario:clave@db.ejemplo:5432/pyroguard",
+            "AI_SERVICE_URL": "",
+        }
+        code = (
+            "import json, config.settings as s; d = s.DATABASES['default']; "
+            "print(json.dumps([d['ENGINE'], d['NAME'], d['HOST'], d['PORT'], d['CONN_MAX_AGE']]))"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], cwd=settings.BASE_DIR, env=env, capture_output=True, text=True, timeout=60
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        engine, name, host, port, conn_max_age = json.loads(result.stdout)
+        self.assertEqual(engine, "django.db.backends.postgresql")
+        self.assertEqual((name, host, port), ("pyroguard", "db.ejemplo", 5432))
+        self.assertGreater(conn_max_age, 0)
