@@ -824,6 +824,14 @@ Puntos a tener en cuenta:
   en frío), `connection_error` (dominio o URL equivocados, o servicio apagado), `http_<código>` (la IA respondió con
   error; `http_404` suele ser una URL con una ruta de más) o `request_error`.
   Una lectura de prueba debe devolver `ai.status = OK` y `ai.model_version`.
+- **Diagnóstico con `check_ai`:** `python manage.py check_ai` (en Render: pestaña *Shell*, o localmente con las mismas
+  variables) consulta `/health` y hace un `POST /predict` de ejemplo con `AI_SERVICE_URL` y `AI_API_KEY`, sin
+  guardar nada. Dice qué falla: URL deshabilitada o equivocada, IA sin modelo, o clave distinta en los dos servicios
+  (`401/403`). Nunca imprime la clave. Termina con código distinto de 0 si algo falla.
+
+  ```bash
+  python manage.py check_ai
+  ```
 
 No ejecutes migraciones de producción desde una terminal local sin confirmar
 explícitamente la conexión seleccionada.
