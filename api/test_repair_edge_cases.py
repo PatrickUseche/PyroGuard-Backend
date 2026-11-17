@@ -102,3 +102,18 @@ class DrainEdgeCaseTests(TestCase):
 
         self.assertEqual((result.evaluated, result.skipped, result.deferred), (0, 1, 0))
         self.assertFalse(result.stopped_early)
+
+    def test_a_failure_warning_the_neighbours_keeps_the_deferred_evaluation(self):
+        assessment = self.pending(**FIRE)
+        prediction = AIPrediction(status=RiskAssessment.AIStatus.OK, risk_level="FIRE", probability=0.97)
+        with (
+            patch.object(evaluation_queue, "_predict", return_value=prediction),
+            patch.object(evaluation_queue, "warn_neighbors_of_fire", side_effect=RuntimeError("grafo")),
+            self.assertLogs("api.readings", level="ERROR") as logs,
+        ):
+            self.assertEqual(evaluation_queue.evaluate_pending(assessment.pk), "evaluated")
+
+        assessment.refresh_from_db()
+        self.assertEqual(assessment.ai_status, RiskAssessment.AIStatus.OK)
+        self.assertEqual(assessment.risk_level, RiskAssessment.RiskLevel.FIRE)
+        self.assertIn("vecinos", " ".join(logs.output))
