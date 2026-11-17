@@ -9,6 +9,7 @@ from django.utils import timezone
 from .models import Node, RiskAssessment, SensorReading
 from .services import evaluation_queue
 from .services.ai_client import AIPrediction
+from .structures.first_in_first_out_queue import FirstInFirstOutQueue
 
 FIRE = {"temperature": 75, "humidity": 8, "smoke": 900, "gas": 0, "flame": True}
 CALM = {"temperature": 22, "humidity": 60, "smoke": 5, "gas": 0, "flame": False}
@@ -80,3 +81,24 @@ class RepairEdgeCaseTests(TestCase):
 
         self.assertEqual(RiskAssessment.objects.get(reading=reading).risk_level, RiskAssessment.RiskLevel.FIRE)
         self.assertIn("vecinos", " ".join(logs.output))
+
+
+@override_settings(AI_SERVICE_URL="http://ia.test", AI_ASYNC_EVALUATION=True)
+class DrainEdgeCaseTests(TestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="DRN-1")
+
+    def pending(self, **values):
+        reading = SensorReading.objects.create(node=self.node, timestamp=timezone.now(), **{**CALM, **values})
+        return RiskAssessment.objects.create(
+            reading=reading, risk_level=RiskAssessment.RiskLevel.NORMAL, ai_status=evaluation_queue.PENDING
+        )
+
+    def test_an_evaluation_already_resolved_elsewhere_counts_as_skipped(self):
+        queue = FirstInFirstOutQueue()
+        queue.enqueue(999_999)  # otro proceso ya la resolvió: ya no está pendiente
+        with patch.object(evaluation_queue, "load_batch", return_value=queue):
+            result = evaluation_queue.drain()
+
+        self.assertEqual((result.evaluated, result.skipped, result.deferred), (0, 1, 0))
+        self.assertFalse(result.stopped_early)
