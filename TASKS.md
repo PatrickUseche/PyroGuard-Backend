@@ -265,7 +265,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(models): representación en texto de `NotificationOutbox`, `RiskAssessment` y `GoogleAccount` [13.39]
 - [x] test(serializers): `flame` rechaza enteros distintos de 0/1 y textos [13.40]
 - [x] test(serializers): editar un nodo sin cambiar su `node_id` es válido y crear uno repetido se rechaza [13.41]
-- [ ] test(queue): ramas de la cola de evaluación sin cubrir [13.42]
+- [x] test(queue): ramas de la cola de evaluación sin cubrir [13.42]
 - [ ] test(structures): operaciones de las estructuras que la cobertura marcaba sin probar [13.43]
 - [ ] test(search): búsqueda por prefijo y caché del dashboard en sus casos límite [13.44]
 - [ ] test(deploy): `render.yaml` deja `AI_SERVICE_URL` y `AI_API_KEY` como secretos del panel [13.45]
