@@ -9,6 +9,9 @@ configurada, con la probabilidad del servicio PyroGuard-IA, que solo puede
 elevar el nivel. Si la IA no responde, la lectura se guarda y se evalúa solo
 con reglas.
 
+**Entrega:** el estado de los tres repositorios, las URL desplegadas y cómo demostrar cada parte están en
+[`docs/ENTREGA.md`](docs/ENTREGA.md); el resumen de cambios por fase, en [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Arquitectura
 
 PyroGuard son tres repositorios: **este backend** (Django), **PyroGuard-IA** (servicio de inferencia) y
