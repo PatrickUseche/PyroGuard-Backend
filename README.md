@@ -289,7 +289,7 @@ Configura `GOOGLE_CLIENT_ID` con un OAuth Client ID de tipo aplicación web:
    **Aplicación web**.
 4. En **Orígenes autorizados de JavaScript**, agrega `http://localhost:4200`
    para desarrollo y el origen exacto de producción, por ejemplo
-   `https://mi-dashboard.vercel.app` (sin barra final).
+   `https://pyro-guard-frontend.vercel.app` (sin barra final).
 5. Copia el Client ID a la variable `GOOGLE_CLIENT_ID` del entorno del backend.
    El Client ID es público. **No se usa ni se guarda un Client Secret**.
 
@@ -748,7 +748,7 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
 2. En Render: **New → Blueprint**, elige este repositorio y la rama `main`. Render crea el servicio
    `pyroguard-backend` y la base `pyroguard-db`, y genera `SECRET_KEY` e `INGEST_API_KEY` solos.
 3. Render te pedirá los valores de las variables marcadas `sync: false`:
-   - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyroguard.vercel.app`).
+   - `EXTRA_CORS_ORIGINS`: dominio del frontend (por ejemplo `https://pyro-guard-frontend.vercel.app`; ese dominio y los `*.vercel.app` ya están permitidos en `settings.py`).
    - `AI_SERVICE_URL` y `AI_API_KEY`: los de la IA; déjalas vacías si aún no la tienes.
    - `EXTRA_ALLOWED_HOSTS`: solo si usas un dominio propio.
    - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` y `DJANGO_SUPERUSER_PASSWORD`: tu usuario del admin
