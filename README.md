@@ -741,7 +741,7 @@ coverage report                    # resumen en consola; coverage html genera ht
 ```
 
 El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertura en el resumen del job;
-**falla si la cobertura baja de 90 %** (`fail_under` en `.coveragerc`).
+**falla si la cobertura baja de 98 %** (`fail_under` en `.coveragerc`).
 
 ## Despliegue en Render
 
@@ -848,7 +848,7 @@ Events y compara el commit servido con `main`.
 Antes de fusionar a `main` (Render despliega desde ahí) o de cambiar variables en el panel:
 
 **Código**
-- [ ] El CI está en verde (`ruff`, migraciones al día, pruebas y cobertura ≥ 90 %).
+- [ ] El CI está en verde (`ruff`, migraciones al día, pruebas y cobertura ≥ 98 %).
 - [ ] `python manage.py makemigrations --check --dry-run` no detecta migraciones pendientes y las nuevas migraciones
       se probaron contra una copia de la base (no contra producción).
 - [ ] `python manage.py check --deploy` con `DEBUG=False` solo muestra las dos advertencias asumidas (`W005`, `W021`).

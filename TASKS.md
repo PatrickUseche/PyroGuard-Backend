@@ -269,7 +269,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(structures): operaciones de las estructuras que la cobertura marcaba sin probar [13.43]
 - [x] test(search): búsqueda por prefijo y caché del dashboard en sus casos límite [13.44]
 - [x] test(deploy): `render.yaml` deja `AI_SERVICE_URL` y `AI_API_KEY` como secretos del panel [13.45]
-- [ ] chore(ci): subir `fail_under` de la cobertura al valor alcanzado [13.46]
+- [x] chore(ci): subir `fail_under` de la cobertura al valor alcanzado [13.46]
 - [ ] docs: `docs/ENTREGA.md` con el estado de cada repositorio y cómo demostrarlo [13.47]
 - [ ] docs: `CHANGELOG.md` del backend [13.48]
 - [ ] docs(readme): insignia del workflow de pruebas [13.49]
