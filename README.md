@@ -76,6 +76,9 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
+Para desarrollar (ruff y coverage incluidos) basta `python -m pip install -r requirements-dev.txt`, que ya
+instala también `requirements.txt`.
+
 Edita `.env` para desarrollo local. `DEBUG=True` y `DATABASE_URL=` seleccionan
 SQLite. Aplica las migraciones y crea un usuario administrador:
 
@@ -729,7 +732,7 @@ modificarla. GitHub Actions ejecuta estas comprobaciones en cada pull request.
 
 ### Lint y cobertura
 
-Las herramientas de desarrollo están en `requirements-dev.txt` (`pip install -r requirements-dev.txt`):
+Las herramientas de desarrollo están en `requirements-dev.txt` (`pip install -r requirements-dev.txt`, que incluye `requirements.txt`):
 
 ```powershell
 ruff check .                       # lint (configuración en ruff.toml); ruff check . --fix corrige lo automático
