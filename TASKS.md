@@ -252,7 +252,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(auth): credencial de Google que no es un objeto o sin `sub` válido [13.26]
 - [x] test(auth): cuerpo que no es un objeto en el acceso y en el registro con Google [13.27]
 - [x] test(auth): nombre de usuario ocupado en una carrera al registrar (`IntegrityError`) [13.28]
-- [ ] test(readings): fecha imposible en `from`/`to` responde 400 [13.29]
+- [x] test(readings): fecha imposible en `from`/`to` responde 400 [13.29]
 - [ ] test(readings): `range` y `order` inválidos responden 400 [13.30]
 - [ ] test(alerts): filtros de `/alerts/` por `node_id`, `from` y `to` [13.31]
 - [ ] test(alerts): `from` posterior a `to` en `/alerts/` responde 400 [13.32]
