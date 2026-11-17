@@ -1127,16 +1127,15 @@ class GoogleAuthEndpointTests(APITestCase):
                 )
 
     def test_invalid_credentials_have_the_same_error_without_logging_credentials(self):
-        with self.assertLogs("api.auth", level="WARNING") as logs:
-            with patch(
-                "api.services.google_auth.verify_oauth2_token",
-                side_effect=[
-                    ValueError("private-credential-one"),
-                    ValueError("private-credential-two"),
-                ],
-            ):
-                first = self.post_google({"credential": "private-credential-one"})
-                second = self.post_google({"credential": "private-credential-two"})
+        with self.assertLogs("api.auth", level="WARNING") as logs, patch(
+            "api.services.google_auth.verify_oauth2_token",
+            side_effect=[
+                ValueError("private-credential-one"),
+                ValueError("private-credential-two"),
+            ],
+        ):
+            first = self.post_google({"credential": "private-credential-one"})
+            second = self.post_google({"credential": "private-credential-two"})
 
         expected = "No se pudo verificar la cuenta de Google."
         self.assertEqual(first.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1478,21 +1477,18 @@ class AIServiceSettingsTests(SimpleTestCase):
             self.assertEqual(_env_service_url("AI_SERVICE_URL"), "")
 
     def test_service_url_requires_http_scheme(self):
-        with patch.dict(os.environ, {"AI_SERVICE_URL": "127.0.0.1:8001"}):
-            with self.assertRaises(ImproperlyConfigured):
-                _env_service_url("AI_SERVICE_URL")
+        with patch.dict(os.environ, {"AI_SERVICE_URL": "127.0.0.1:8001"}), self.assertRaises(ImproperlyConfigured):
+            _env_service_url("AI_SERVICE_URL")
 
     def test_timeouts_use_defaults_when_missing(self):
         for name, default in (("AI_CONNECT_TIMEOUT", 3.0), ("AI_READ_TIMEOUT", 10.0)):
-            with self.subTest(name=name):
-                with patch.dict(os.environ, {name: ""}):
-                    self.assertEqual(_env_positive_float(name, default), default)
+            with self.subTest(name=name), patch.dict(os.environ, {name: ""}):
+                self.assertEqual(_env_positive_float(name, default), default)
 
     def test_timeouts_are_parsed(self):
         for name, default in (("AI_CONNECT_TIMEOUT", 3.0), ("AI_READ_TIMEOUT", 10.0)):
-            with self.subTest(name=name):
-                with patch.dict(os.environ, {name: "4"}):
-                    self.assertEqual(_env_positive_float(name, default), 4.0)
+            with self.subTest(name=name), patch.dict(os.environ, {name: "4"}):
+                self.assertEqual(_env_positive_float(name, default), 4.0)
 
     def test_settings_define_split_timeouts(self):
         # Sin comparar valores: dependen del .env local; los defaults se prueban arriba.
@@ -1505,10 +1501,12 @@ class AIServiceSettingsTests(SimpleTestCase):
 
     def test_invalid_timeout_is_rejected(self):
         for value in ("abc", "0", "-1", "nan", "inf"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"AI_READ_TIMEOUT": value}):
-                    with self.assertRaises(ImproperlyConfigured):
-                        _env_positive_float("AI_READ_TIMEOUT", 10.0)
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"AI_READ_TIMEOUT": value}),
+                self.assertRaises(ImproperlyConfigured),
+            ):
+                _env_positive_float("AI_READ_TIMEOUT", 10.0)
 
 
 class RiskAssessmentAIFieldsTests(TestCase):
@@ -2262,12 +2260,11 @@ class ThrottlingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_requests_without_valid_key_are_rejected_before_counting(self):
-        with override_settings(INGEST_API_KEY=self.ingest_api_key):
-            with self.limit(ingest="1/min"):
-                responses = [
-                    self.client.post(reverse("receive_reading"), {}, format="json")
-                    for _ in range(3)
-                ]
+        with override_settings(INGEST_API_KEY=self.ingest_api_key), self.limit(ingest="1/min"):
+            responses = [
+                self.client.post(reverse("receive_reading"), {}, format="json")
+                for _ in range(3)
+            ]
 
         self.assertEqual(
             [response.status_code for response in responses],
@@ -2275,40 +2272,38 @@ class ThrottlingTests(APITestCase):
         )
 
     def google_login(self, **headers):
-        with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
-            with patch(
-                "api.services.google_auth.verify_oauth2_token",
-                return_value={
-                    "sub": "throttle-user",
-                    "email": "operador@gmail.com",
-                    "email_verified": True,
-                },
-            ):
-                return self.client.post(
-                    reverse("google_login"),
-                    {"credential": "mock-credential"},
-                    format="json",
-                    **headers,
-                )
+        with override_settings(GOOGLE_CLIENT_ID="test-google-client"), patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value={
+                "sub": "throttle-user",
+                "email": "operador@gmail.com",
+                "email_verified": True,
+            },
+        ):
+            return self.client.post(
+                reverse("google_login"),
+                {"credential": "mock-credential"},
+                format="json",
+                **headers,
+            )
 
     def google_register(self):
-        with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
-            with patch(
-                "api.services.google_auth.verify_credential",
-                return_value={
-                    "sub": "throttle-register-user",
-                    "email": "register-limited@gmail.com",
-                    "email_verified": True,
+        with override_settings(GOOGLE_CLIENT_ID="test-google-client"), patch(
+            "api.services.google_auth.verify_credential",
+            return_value={
+                "sub": "throttle-register-user",
+                "email": "register-limited@gmail.com",
+                "email_verified": True,
+            },
+        ):
+            return self.client.post(
+                reverse("google_register"),
+                {
+                    "credential": "mock-credential",
+                    "username": "registerlimited",
                 },
-            ):
-                return self.client.post(
-                    reverse("google_register"),
-                    {
-                        "credential": "mock-credential",
-                        "username": "registerlimited",
-                    },
-                    format="json",
-                )
+                format="json",
+            )
 
     def test_google_login_attempts_are_limited_per_ip(self):
         with self.limit(google_login="3/min"):
@@ -2392,18 +2387,19 @@ class ThrottleSettingsTests(SimpleTestCase):
 
     def test_rate_is_parsed(self):
         for value in ("5/sec", " 120/min ", "10/hour", "1000/day"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
-                    self.assertEqual(
-                        _env_rate("THROTTLE_READ_RATE", "120/min"), value.strip()
-                    )
+            with self.subTest(value=value), patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
+                self.assertEqual(
+                    _env_rate("THROTTLE_READ_RATE", "120/min"), value.strip()
+                )
 
     def test_invalid_rate_is_rejected(self):
         for value in ("abc", "120", "0/min", "-1/min", "10/year", "1.5/min"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"THROTTLE_READ_RATE": value}):
-                    with self.assertRaises(ImproperlyConfigured):
-                        _env_rate("THROTTLE_READ_RATE", "120/min")
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"THROTTLE_READ_RATE": value}),
+                self.assertRaises(ImproperlyConfigured),
+            ):
+                _env_rate("THROTTLE_READ_RATE", "120/min")
 
     def test_num_proxies_is_optional(self):
         with patch.dict(os.environ, {"NUM_PROXIES": ""}):
@@ -2411,16 +2407,17 @@ class ThrottleSettingsTests(SimpleTestCase):
 
     def test_num_proxies_accepts_zero_and_positive_values(self):
         for value, expected in (("0", 0), ("1", 1), (" 2 ", 2)):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"NUM_PROXIES": value}):
-                    self.assertEqual(_env_non_negative_int("NUM_PROXIES"), expected)
+            with self.subTest(value=value), patch.dict(os.environ, {"NUM_PROXIES": value}):
+                self.assertEqual(_env_non_negative_int("NUM_PROXIES"), expected)
 
     def test_invalid_num_proxies_is_rejected(self):
         for value in ("abc", "-1", "1.5"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"NUM_PROXIES": value}):
-                    with self.assertRaises(ImproperlyConfigured):
-                        _env_non_negative_int("NUM_PROXIES")
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"NUM_PROXIES": value}),
+                self.assertRaises(ImproperlyConfigured),
+            ):
+                _env_non_negative_int("NUM_PROXIES")
 
 
 class ReadAccessTests(APITestCase):
@@ -2695,28 +2692,27 @@ class BooleanSettingsTests(SimpleTestCase):
     def test_empty_or_blank_variable_uses_the_default(self):
         for value in ("", "   "):
             for default in (True, False):
-                with self.subTest(value=value, default=default):
-                    with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
-                        self.assertIs(_env_bool("PRUEBA_BOOL", default), default)
+                with self.subTest(value=value, default=default), patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                    self.assertIs(_env_bool("PRUEBA_BOOL", default), default)
 
     def test_true_values_are_accepted(self):
         for value in ("true", "True", "TRUE", "1", "yes", "on", " true "):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
-                    self.assertIs(_env_bool("PRUEBA_BOOL", False), True)
+            with self.subTest(value=value), patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                self.assertIs(_env_bool("PRUEBA_BOOL", False), True)
 
     def test_false_values_are_accepted(self):
         for value in ("false", "False", "FALSE", "0", "no", "off", " false "):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
-                    self.assertIs(_env_bool("PRUEBA_BOOL", True), False)
+            with self.subTest(value=value), patch.dict(os.environ, {"PRUEBA_BOOL": value}):
+                self.assertIs(_env_bool("PRUEBA_BOOL", True), False)
 
     def test_invalid_value_is_rejected_naming_the_variable(self):
         for value in ("falso", "production", "2", "'False'"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"PRUEBA_BOOL": value}):
-                    with self.assertRaisesMessage(ValueError, "PRUEBA_BOOL"):
-                        _env_bool("PRUEBA_BOOL", False)
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"PRUEBA_BOOL": value}),
+                self.assertRaisesMessage(ValueError, "PRUEBA_BOOL"),
+            ):
+                _env_bool("PRUEBA_BOOL", False)
 
 
 class ProcfileTests(SimpleTestCase):
@@ -2803,10 +2799,9 @@ class ClientIPThrottlingTests(APITestCase):
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_empty_setting_keeps_the_default_forwarded_for_behaviour(self):
-        with override_settings(CLIENT_IP_HEADER=""):
-            with self.limit(read="1/min"):
-                first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
-                second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
+        with override_settings(CLIENT_IP_HEADER=""), self.limit(read="1/min"):
+            first = self.get(HTTP_X_FORWARDED_FOR="198.51.100.1")
+            second = self.get(HTTP_X_FORWARDED_FOR="198.51.100.2")
 
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_200_OK)
@@ -2821,25 +2816,23 @@ class ClientIPThrottlingTests(APITestCase):
                 "google_login": "1/min",
                 "google_register": "1000/min",
             },
+        ), override_settings(GOOGLE_CLIENT_ID="test-google-client"), patch(
+            "api.services.google_auth.verify_oauth2_token",
+            return_value={
+                "sub": "ip-test-user",
+                "email": "operador@gmail.com",
+                "email_verified": True,
+            },
         ):
-            with override_settings(GOOGLE_CLIENT_ID="test-google-client"):
-                with patch(
-                    "api.services.google_auth.verify_oauth2_token",
-                    return_value={
-                        "sub": "ip-test-user",
-                        "email": "operador@gmail.com",
-                        "email_verified": True,
-                    },
-                ):
-                    statuses = [
-                        self.client.post(
-                            reverse("google_login"),
-                            {"credential": "mock-credential"},
-                            format="json",
-                            HTTP_CF_CONNECTING_IP=ip,
-                        ).status_code
-                        for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
-                    ]
+            statuses = [
+                self.client.post(
+                    reverse("google_login"),
+                    {"credential": "mock-credential"},
+                    format="json",
+                    HTTP_CF_CONNECTING_IP=ip,
+                ).status_code
+                for ip in ("203.0.113.1", "203.0.113.1", "203.0.113.2")
+            ]
 
         self.assertEqual(
             statuses,
@@ -2857,13 +2850,14 @@ class ClientIPSettingsTests(SimpleTestCase):
 
     def test_valid_header_names_are_accepted(self):
         for value in ("CF-Connecting-IP", " True-Client-IP ", "X-Real-IP"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
-                    self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), value.strip())
+            with self.subTest(value=value), patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
+                self.assertEqual(_env_header_name("CLIENT_IP_HEADER"), value.strip())
 
     def test_invalid_header_names_are_rejected(self):
         for value in ("CF Connecting IP", "CF_Connecting_IP", "-IP", "IP-", "a:b", "x\ny"):
-            with self.subTest(value=value):
-                with patch.dict(os.environ, {"CLIENT_IP_HEADER": value}):
-                    with self.assertRaises(ImproperlyConfigured):
-                        _env_header_name("CLIENT_IP_HEADER")
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"CLIENT_IP_HEADER": value}),
+                self.assertRaises(ImproperlyConfigured),
+            ):
+                _env_header_name("CLIENT_IP_HEADER")
