@@ -237,7 +237,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] feat(commands): `check_ai` comprueba `/health` y `/predict` de la IA con la configuración actual [13.11]
 - [x] test(commands): pruebas de `check_ai` (IA sana, clave incorrecta, IA caída y deshabilitada) [13.12]
 - [x] docs(deploy): diagnosticar `ai: unavailable` con `check_ai` [13.13]
-- [ ] chore(deps): `requirements-dev.txt` incluye `requirements.txt` [13.14]
+- [x] chore(deps): `requirements-dev.txt` incluye `requirements.txt` [13.14]
 - [ ] docs: instalación de desarrollo con un solo `pip install -r requirements-dev.txt` [13.15]
 - [ ] chore(lint): activar en ruff las reglas UP, SIM, C4, RET y RUF100 [13.16]
 - [ ] style: `datetime.UTC` (ruff UP017) [13.17]
