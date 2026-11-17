@@ -6,6 +6,8 @@ import requests
 from django.conf import settings
 from django.db import connection
 
+from api.services.ai_client import health_url
+
 logger = logging.getLogger("api.health")
 
 def check_database():
@@ -36,7 +38,7 @@ def check_ai():
         return {"status": "disabled"}
     started = time.perf_counter()
     try:
-        response = requests.get(f"{settings.AI_SERVICE_URL}/health", timeout=settings.AI_HEALTH_TIMEOUT)
+        response = requests.get(health_url(), timeout=settings.AI_HEALTH_TIMEOUT)
     except requests.RequestException as error:
         logger.warning("La IA no responde a /health (%s).", type(error).__name__)
         return {"status": "unavailable", "reason": _unavailable_reason(error)}
