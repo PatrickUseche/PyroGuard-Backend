@@ -54,9 +54,8 @@ class ParseArgsTests(SimpleTestCase):
     def test_invalid_values_are_rejected(self):
         for argv in (["--interval", "0"], ["--interval", "-1"], ["--nodes", "0"], ["--nodes", "101"],
                      ["--scenario", "otro"], ["--nodes", "x"]):
-            with self.subTest(argv=argv):
-                with patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
-                    parse(*argv)
+            with self.subTest(argv=argv), patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
+                parse(*argv)
 
 
 class NodeIdsTests(SimpleTestCase):

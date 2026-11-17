@@ -143,9 +143,11 @@ class RecentReadingsStoreTests(LiveStateTestCase):
     def test_a_failure_while_buffering_does_not_lose_the_reading(self):
         live_readings.recent(self.node)
 
-        with patch.object(live_readings, "record", side_effect=RuntimeError("fallo")):
-            with self.assertLogs("api.readings", level="ERROR"):
-                response = self.ingest(0)
+        with (
+            patch.object(live_readings, "record", side_effect=RuntimeError("fallo")),
+            self.assertLogs("api.readings", level="ERROR"),
+        ):
+            response = self.ingest(0)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(SensorReading.objects.count(), 1)

@@ -287,9 +287,11 @@ class SendCommandTests(OutboxBase):
     def test_warns_about_failed_notices(self):
         enqueue(FIRE, self.node, "Incendio", "d")
 
-        with override_settings(NOTIFICATION_CHANNELS=["telegram"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID=""):
-            with self.assertLogs("api.notifications", level="WARNING"):
-                output = self.run_command()
+        with (
+            override_settings(NOTIFICATION_CHANNELS=["telegram"], TELEGRAM_BOT_TOKEN="", TELEGRAM_CHAT_ID=""),
+            self.assertLogs("api.notifications", level="WARNING"),
+        ):
+            output = self.run_command()
 
         self.assertIn("Fallidos: 1", output)
         self.assertIn("revisa last_error", output)
@@ -354,9 +356,11 @@ class FireAlertNotificationTests(TestCase):
     def test_a_failure_while_queueing_does_not_lose_the_alert(self):
         reading, assessment = self.assessed("FIRE")
 
-        with patch("api.services.alerts.enqueue", side_effect=RuntimeError("fallo")):
-            with self.assertLogs("api.readings", level="ERROR"):
-                alert = maybe_create_alert(self.node, reading, assessment)
+        with (
+            patch("api.services.alerts.enqueue", side_effect=RuntimeError("fallo")),
+            self.assertLogs("api.readings", level="ERROR"),
+        ):
+            alert = maybe_create_alert(self.node, reading, assessment)
 
         self.assertEqual(Alert.objects.get(), alert)
         self.assertEqual(NotificationOutbox.objects.count(), 0)
@@ -367,7 +371,9 @@ class FireAlertNotificationTests(TestCase):
         reading, assessment = self.assessed("FIRE")
 
         with transaction.atomic():
-            with patch("api.services.alerts.enqueue", side_effect=DatabaseError("boom")):
-                with self.assertLogs("api.readings", level="ERROR"):
-                    maybe_create_alert(self.node, reading, assessment)
+            with (
+                patch("api.services.alerts.enqueue", side_effect=DatabaseError("boom")),
+                self.assertLogs("api.readings", level="ERROR"),
+            ):
+                maybe_create_alert(self.node, reading, assessment)
             self.assertEqual(Alert.objects.count(), 1)  # la transacción sigue utilizable

@@ -145,9 +145,8 @@ class SeedDemoTests(TestCase):
 
     def test_invalid_options_are_rejected(self):
         for options in ({"nodes": 2}, {"nodes": 51}, {"hours": 2}, {"hours": 73}):
-            with self.subTest(options=options):
-                with self.assertRaises(CommandError):
-                    seed(**options)
+            with self.subTest(options=options), self.assertRaises(CommandError):
+                seed(**options)
         self.assertEqual(Node.objects.count(), 0)
 
     def test_the_data_is_visible_through_the_api(self):

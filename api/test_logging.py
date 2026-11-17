@@ -126,13 +126,12 @@ class LoggingSettingsTests(SimpleTestCase):
 
         from config import settings as settings_module
 
-        with patch.dict(os.environ, {"LOG_FORMAT": "xml"}):
-            with self.assertRaises(ImproperlyConfigured):
-                try:
-                    importlib.reload(settings_module)
-                finally:
-                    os.environ.pop("LOG_FORMAT", None)
-                    importlib.reload(settings_module)
+        with patch.dict(os.environ, {"LOG_FORMAT": "xml"}), self.assertRaises(ImproperlyConfigured):
+            try:
+                importlib.reload(settings_module)
+            finally:
+                os.environ.pop("LOG_FORMAT", None)
+                importlib.reload(settings_module)
 
 
 class RequestIdMiddlewareTests(TestCase):

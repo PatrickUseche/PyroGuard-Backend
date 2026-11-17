@@ -205,9 +205,8 @@ class NodeStatusCacheEndpointTests(CacheTestCase):
             self.assertEqual(self.client.get(self.status_url()).data["connection_status"], "ONLINE")
 
             later = timezone.now() + timedelta(seconds=120)
-            with patch("api.models.timezone.now", return_value=later):
-                with self.assertNumQueries(0):
-                    data = self.client.get(self.status_url()).data
+            with patch("api.models.timezone.now", return_value=later), self.assertNumQueries(0):
+                data = self.client.get(self.status_url()).data
 
         self.assertEqual(data["connection_status"], "OFFLINE")
         self.assertTrue(data["current_risk_stale"])
@@ -221,17 +220,15 @@ class NodeStatusCacheEndpointTests(CacheTestCase):
         self.assertEqual(node_status_cache.stats["size"], 2)
         with self.assertNumQueries(0):
             self.client.get(self.status_url("NODE-003"))
-        with self.assertRaises(AssertionError):
-            with self.assertNumQueries(0):
-                self.client.get(self.status_url("NODE-001"))
+        with self.assertRaises(AssertionError), self.assertNumQueries(0):
+            self.client.get(self.status_url("NODE-001"))
 
     @override_settings(NODE_STATUS_CACHE_SIZE=0)
     def test_disabled_cache_always_queries(self):
         self.client.get(self.status_url())
 
-        with self.assertRaises(AssertionError):
-            with self.assertNumQueries(0):
-                self.client.get(self.status_url())
+        with self.assertRaises(AssertionError), self.assertNumQueries(0):
+            self.client.get(self.status_url())
 
     def test_unknown_node_is_not_cached(self):
         self.assertEqual(self.client.get(self.status_url("NO-EXISTE")).status_code, 404)
@@ -318,9 +315,8 @@ class DashboardSummaryCacheEndpointTests(CacheTestCase):
         self.summary()
         self.clock.now += 6
 
-        with self.assertRaises(AssertionError):
-            with self.assertNumQueries(0):
-                self.summary()
+        with self.assertRaises(AssertionError), self.assertNumQueries(0):
+            self.summary()
 
     def test_ingestion_invalidates_it(self):
         self.assertEqual(self.summary()["latest_readings"], [])
@@ -358,9 +354,8 @@ class DashboardSummaryCacheEndpointTests(CacheTestCase):
     def test_disabled_cache_always_queries(self):
         self.summary()
 
-        with self.assertRaises(AssertionError):
-            with self.assertNumQueries(0):
-                self.summary()
+        with self.assertRaises(AssertionError), self.assertNumQueries(0):
+            self.summary()
 
     def test_a_reading_assessment_change_invalidates_it(self):
         reading = SensorReading.objects.create(

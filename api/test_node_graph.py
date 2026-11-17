@@ -372,9 +372,11 @@ class FireNeighborWarningTests(APITestCase):
         self.assertEqual(warn_neighbors_of_fire("B"), {"A": 1, "C": 1, "D": 2})
 
     def test_a_failure_while_warning_does_not_lose_the_reading(self):
-        with patch("api.services.ingestion.warn_neighbors_of_fire", side_effect=RuntimeError("fallo")):
-            with self.assertLogs("api.readings", level="ERROR"):
-                response = self.ingest("A")
+        with (
+            patch("api.services.ingestion.warn_neighbors_of_fire", side_effect=RuntimeError("fallo")),
+            self.assertLogs("api.readings", level="ERROR"),
+        ):
+            response = self.ingest("A")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["risk_level"], "FIRE")
