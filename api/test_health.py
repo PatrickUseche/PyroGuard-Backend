@@ -1,11 +1,16 @@
 """Pruebas de GET /health/ con la base de datos y la IA caídas."""
+import os
 from unittest.mock import MagicMock, patch
 
 import requests
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import OperationalError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
+
+from config.settings import _env_positive_float
 
 from .services.health import check_ai, check_database, get_health
 
@@ -159,3 +164,24 @@ class AIUnavailableReasonTests(TestCase):
     def test_an_ai_that_works_has_no_reason(self):
         with patch("api.services.health.requests.get", return_value=MagicMock(status_code=200)):
             self.assertNotIn("reason", check_ai())
+
+
+class AIHealthTimeoutTests(TestCase):
+    def test_default_timeout_is_two_seconds(self):
+        if "AI_HEALTH_TIMEOUT" not in os.environ:
+            self.assertEqual(settings.AI_HEALTH_TIMEOUT, 2.0)
+
+    @override_settings(AI_SERVICE_URL="http://ia.test", AI_HEALTH_TIMEOUT=8.5)
+    def test_the_configured_timeout_is_used(self):
+        with patch("api.services.health.requests.get", return_value=MagicMock(status_code=200)) as get:
+            check_ai()
+
+        self.assertEqual(get.call_args.kwargs["timeout"], 8.5)
+
+    def test_the_variable_must_be_a_positive_number(self):
+        with patch.dict(os.environ, {"AI_HEALTH_TIMEOUT": "4"}):
+            self.assertEqual(_env_positive_float("AI_HEALTH_TIMEOUT", 2.0), 4.0)
+        for value in ("0", "-1", "rápido", "nan"):
+            with self.subTest(value=value), patch.dict(os.environ, {"AI_HEALTH_TIMEOUT": value}):
+                with self.assertRaisesMessage(ImproperlyConfigured, "AI_HEALTH_TIMEOUT"):
+                    _env_positive_float("AI_HEALTH_TIMEOUT", 2.0)
