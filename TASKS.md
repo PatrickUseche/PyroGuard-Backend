@@ -273,4 +273,8 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] docs: `docs/ENTREGA.md` con el estado de cada repositorio y cómo demostrarlo [13.47]
 - [x] docs: `CHANGELOG.md` del backend [13.48]
 - [x] docs(readme): insignia del workflow de pruebas [13.49]
-- [ ] docs(tasks): resultados de la Fase 13 (pruebas, cobertura y lint) [13.50]
+- [x] docs(tasks): resultados de la Fase 13 (pruebas, cobertura y lint) [13.50]
+
+Resultado de la Fase 13: 891 pruebas en verde (antes 828), cobertura del 99 % de líneas y ramas (mínimo del CI: 98 %) y
+`ruff check .` sin avisos con las reglas nuevas. Queda una acción fuera del código: poner en el panel de Render
+`AI_SERVICE_URL=https://pyro-guard-ia.vercel.app` y la misma `AI_API_KEY` de la IA, y comprobarlo con `check_ai`.
