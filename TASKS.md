@@ -64,11 +64,11 @@ Cada estructura: implementación → pruebas. La complejidad de cada operación 
 - [x] test(structures): pruebas de las sumas de prefijos [2.21]
 - [x] feat(structures): filtro de Bloom para detectar duplicados [2.22]
 - [x] test(structures): pruebas del filtro de Bloom (sin falsos negativos y tasa de falsos positivos acotada) [2.23]
-- [x] refactor(structures): renombrar `RecentItemsRing` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
-- [x] refactor(structures): renombrar `RollingExtremesWindow` a `RollingExtremesWindow` [2.26]
-- [x] refactor(structures): renombrar `BidirectionalChain` y `ChainLink` a `BidirectionalChain` y `ChainLink` [2.27]
-- [x] refactor(structures): renombrar `LeastRecentlyUsedCache` a `LeastRecentlyUsedCache` [2.28]
-- [x] refactor(structures): renombrar `FirstInFirstOutQueue` a `FirstInFirstOutQueue` [2.29]
+- [x] refactor(structures): renombrar `RingBuffer` a `RecentItemsRing` (nombres descriptivos por función) [2.25]
+- [x] refactor(structures): renombrar `SlidingWindow` a `RollingExtremesWindow` [2.26]
+- [x] refactor(structures): renombrar `DoublyLinkedList` y `ListNode` a `BidirectionalChain` y `ChainLink` [2.27]
+- [x] refactor(structures): renombrar `LRUCache` a `LeastRecentlyUsedCache` [2.28]
+- [x] refactor(structures): renombrar `LinkedQueue` a `FirstInFirstOutQueue` [2.29]
 - [x] fix(structures): `RecentItemsRing.append` distingue «no expulsó nada» de «expulsó `None`» con un valor centinela (revisión con Lemmaly) [2.30]
 - [x] test(structures): pruebas del centinela de `RecentItemsRing` con elementos `None` guardados [2.31]
 - [x] docs(structures): complejidad esperada frente a peor caso en las estructuras con tabla hash, operaciones sin documentar y aviso de que no son seguras entre hilos (revisión con CLRS) [2.32]
@@ -224,7 +224,7 @@ Revisión del 2026-11-17: la IA está desplegada en Vercel (`https://pyro-guard-
 diagnosticar ese estado (`reason` en `/health/` y el comando `check_ai`), amplía el lint, cubre con pruebas las ramas
 que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 
-- [ ] docs(tasks): restaurar los nombres originales en las tasks de renombrado [2.25]–[2.29] [13.1]
+- [x] docs(tasks): restaurar los nombres originales en las tasks de renombrado [2.25]–[2.29] [13.1]
 - [ ] docs(deploy): URL real de la IA en el README y en `render.yaml` [13.2]
 - [ ] docs(deploy): dominio real del frontend en los ejemplos de `EXTRA_CORS_ORIGINS` [13.3]
 - [ ] feat(health): `/health/` indica por qué la IA no está disponible (`reason`) [13.4]
