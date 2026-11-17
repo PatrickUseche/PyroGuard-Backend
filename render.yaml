@@ -36,7 +36,7 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
-      - key: AI_SERVICE_URL       # URL del servicio pyroguard-ia, sin barra final
+      - key: AI_SERVICE_URL       # URL de PyroGuard-IA sin barra final: https://pyro-guard-ia.vercel.app
         sync: false
       - key: AI_API_KEY           # igual a la AI_API_KEY del servicio de IA
         sync: false

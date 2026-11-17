@@ -743,7 +743,8 @@ El CI ejecuta `ruff`, las pruebas con cobertura y publica el resumen de cobertur
 
 ### Desde cero con el Blueprint (`render.yaml`)
 
-1. **IA primero** (opcional): despliega `PyroGuard-IA` (trae su propio `render.yaml`) y anota su URL.
+1. **IA primero** (opcional): la de producción ya está en `https://pyro-guard-ia.vercel.app`; si despliegas otra,
+   `PyroGuard-IA` trae su propio `render.yaml` y `vercel.json`.
 2. En Render: **New → Blueprint**, elige este repositorio y la rama `main`. Render crea el servicio
    `pyroguard-backend` y la base `pyroguard-db`, y genera `SECRET_KEY` e `INGEST_API_KEY` solos.
 3. Render te pedirá los valores de las variables marcadas `sync: false`:
@@ -792,14 +793,15 @@ haya caducado: el PostgreSQL gratuito se elimina tras unos 30 días si no se pas
 6. Confirmar que el origen del frontend esté permitido por CORS y que el host
 	 de la API esté permitido en `ALLOWED_HOSTS`.
 
-### Conectar con PyroGuard-IA en Render
+### Conectar con PyroGuard-IA
 
-La IA es un servicio web aparte (su repositorio trae `render.yaml`, con `healthCheckPath: /health`). El backend
+La IA de producción está desplegada en **Vercel** en `https://pyro-guard-ia.vercel.app` (su repositorio también
+trae `render.yaml` por si se despliega en Render). El backend
 la consulta por HTTP y, si no responde, sigue funcionando solo con reglas. Para conectarla:
 
 | Variable (backend) | Valor | Notas |
 | --- | --- | --- |
-| `AI_SERVICE_URL` | `https://<servicio-ia>.onrender.com` | URL pública del servicio de IA **sin barra final**. Vacía = IA desactivada (se evalúa solo con reglas). Debe empezar por `http://` o `https://`, si no el backend no arranca |
+| `AI_SERVICE_URL` | `https://pyro-guard-ia.vercel.app` | URL pública del servicio de IA **sin barra final**. Vacía = IA desactivada (se evalúa solo con reglas). Debe empezar por `http://` o `https://`, si no el backend no arranca |
 | `AI_API_KEY` | una clave larga y aleatoria | Se envía como `X-AI-API-Key`. **Debe ser idéntica a la `AI_API_KEY` configurada en el servicio de IA**; si no coinciden, la IA responde 401/403 y las lecturas quedan con `ai.status = REJECTED` |
 | `AI_CONNECT_TIMEOUT` | `3.0` (por defecto) | Segundos para establecer la conexión; detecta una IA caída rápido |
 | `AI_READ_TIMEOUT` | `10.0` (por defecto) | Segundos de espera de la inferencia una vez conectado |
