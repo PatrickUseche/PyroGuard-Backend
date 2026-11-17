@@ -278,3 +278,17 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 Resultado de la Fase 13: 891 pruebas en verde (antes 828), cobertura del 99 % de líneas y ramas (mínimo del CI: 98 %) y
 `ruff check .` sin avisos con las reglas nuevas. Queda una acción fuera del código: poner en el panel de Render
 `AI_SERVICE_URL=https://pyro-guard-ia.vercel.app` y la misma `AI_API_KEY` de la IA, y comprobarlo con `check_ai`.
+
+### Ampliación de la Fase 13
+
+Ramas que seguían sin cubrir tras [13.46] y enlaces de la documentación de entrega.
+
+- [ ] test(health): la vista `/api/health/` entrega `reason` al cliente cuando la IA no responde [13.51]
+- [ ] test(auth): registrarse con Google con una cuenta desactivada responde 403 [13.52]
+- [ ] test(alerts): filtros de `/alerts/` por `status` y `level` [13.53]
+- [ ] test(auth): tras un `IntegrityError`, un usuario del mismo correo ya vinculado a Google se devuelve [13.54]
+- [ ] test(queue): `drain` cuenta como omitidas las lecturas que otro proceso ya evaluó [13.55]
+- [ ] test(queue): un fallo al avisar a los vecinos no deshace la evaluación diferida [13.56]
+- [ ] test(config): `DATABASE_URL` selecciona PostgreSQL con conexiones persistentes [13.57]
+- [ ] docs(entrega): enlazar `docs/ENTREGA.md` y `CHANGELOG.md` desde el README [13.58]
+- [ ] docs(tasks): resultados finales de la Fase 13 [13.59]
