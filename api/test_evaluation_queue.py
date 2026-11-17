@@ -181,9 +181,11 @@ class DrainTests(TestCase):
     def test_a_fire_after_the_ai_warns_the_neighbors(self):
         self.pending(temperature=55, smoke=400)
 
-        with patch("api.services.ai_client.requests.post", return_value=ai_reply("FIRE", 0.95)):
-            with patch("api.services.evaluation_queue.warn_neighbors_of_fire") as warn:
-                drain()
+        with (
+            patch("api.services.ai_client.requests.post", return_value=ai_reply("FIRE", 0.95)),
+            patch("api.services.evaluation_queue.warn_neighbors_of_fire") as warn,
+        ):
+            drain()
 
         warn.assert_called_once_with("NODE-001")
 
@@ -191,9 +193,11 @@ class DrainTests(TestCase):
         for _ in range(3):
             self.pending()
 
-        with patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")) as post:
-            with self.assertLogs("api.ai", level="WARNING"):
-                result = drain()
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")) as post,
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            result = drain()
 
         self.assertEqual(post.call_count, 1)  # no espera un timeout por cada pendiente
         self.assertTrue(result.stopped_early)
@@ -203,9 +207,11 @@ class DrainTests(TestCase):
 
     def test_they_are_retried_on_the_next_run(self):
         self.pending()
-        with patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")):
-            with self.assertLogs("api.ai", level="WARNING"):
-                drain()
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")),
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            drain()
 
         with patch("api.services.ai_client.requests.post", return_value=ai_reply("NORMAL", 0.1)):
             result = drain()
@@ -219,9 +225,11 @@ class DrainTests(TestCase):
         rejected.status_code = 403
         rejected._content = b"{}"
 
-        with patch("api.services.ai_client.requests.post", return_value=rejected):
-            with self.assertLogs("api.ai", level="ERROR"):
-                result = drain()
+        with (
+            patch("api.services.ai_client.requests.post", return_value=rejected),
+            self.assertLogs("api.ai", level="ERROR"),
+        ):
+            result = drain()
 
         self.assertEqual(result.evaluated, 1)
         self.assertEqual(RiskAssessment.objects.get().ai_status, "REJECTED")
@@ -283,9 +291,11 @@ class DrainCommandTests(TestCase):
             ai_status=RiskAssessment.AIStatus.PENDING,
         )
 
-        with patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")):
-            with self.assertLogs("api.ai", level="WARNING"):
-                output = self.run_command()
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=requests.ConnectTimeout("caída")),
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            output = self.run_command()
 
         self.assertIn("Pendientes: 1", output)
         self.assertIn("La IA no respondió", output)

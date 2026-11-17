@@ -86,9 +86,8 @@ class CheckAICommandTests(SimpleTestCase):
 
     @override_settings(AI_SERVICE_URL="")
     def test_a_disabled_ai_fails_without_calling_it(self):
-        with patch(TARGET) as http:
-            with self.assertRaisesMessage(CommandError, "deshabilitada"):
-                run()
+        with patch(TARGET) as http, self.assertRaisesMessage(CommandError, "deshabilitada"):
+            run()
 
         http.get.assert_not_called()
         http.post.assert_not_called()

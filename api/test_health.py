@@ -45,16 +45,20 @@ class AIHealthTests(TestCase):
         self.assertEqual(kwargs["timeout"], 2.0)
 
     def test_an_ai_that_does_not_connect_is_unavailable(self):
-        with patch("api.services.health.requests.get", side_effect=requests.ConnectTimeout("caída")):
-            with self.assertLogs("api.health", level="WARNING"):
-                self.assertEqual(check_ai()["status"], "unavailable")
+        with (
+            patch("api.services.health.requests.get", side_effect=requests.ConnectTimeout("caída")),
+            self.assertLogs("api.health", level="WARNING"),
+        ):
+            self.assertEqual(check_ai()["status"], "unavailable")
 
     def test_an_ai_that_answers_with_an_error_is_unavailable(self):
         for code in (500, 503, 404):
-            with self.subTest(code=code):
-                with patch("api.services.health.requests.get", return_value=MagicMock(status_code=code)):
-                    with self.assertLogs("api.health", level="WARNING"):
-                        self.assertEqual(check_ai()["status"], "unavailable")
+            with (
+                self.subTest(code=code),
+                patch("api.services.health.requests.get", return_value=MagicMock(status_code=code)),
+                self.assertLogs("api.health", level="WARNING"),
+            ):
+                self.assertEqual(check_ai()["status"], "unavailable")
 
     @override_settings(AI_SERVICE_URL="")
     def test_without_a_configured_ai_it_is_disabled_and_not_called(self):
@@ -88,9 +92,11 @@ class HealthEndpointTests(TestCase):
 
     @override_settings(AI_SERVICE_URL="http://ia.test")
     def test_a_down_ai_degrades_but_does_not_fail_the_backend(self):
-        with patch("api.services.health.requests.get", side_effect=requests.ConnectionError("caída")):
-            with self.assertLogs("api.health", level="WARNING"):
-                response = self.get()
+        with (
+            patch("api.services.health.requests.get", side_effect=requests.ConnectionError("caída")),
+            self.assertLogs("api.health", level="WARNING"),
+        ):
+            response = self.get()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "degraded")
@@ -101,9 +107,8 @@ class HealthEndpointTests(TestCase):
     def test_a_down_database_returns_503_and_skips_the_ai(self):
         with patch("api.services.health.connection") as connection:
             connection.cursor.side_effect = OperationalError("sin conexión")
-            with patch("api.services.health.requests.get") as get:
-                with self.assertLogs("api.health", level="ERROR"):
-                    response = self.get()
+            with patch("api.services.health.requests.get") as get, self.assertLogs("api.health", level="ERROR"):
+                response = self.get()
 
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data["status"], "down")
@@ -140,9 +145,8 @@ class AIUnavailableReasonTests(TestCase):
     """`reason` dice por qué la IA no está disponible, sin exponer la URL ni el error completo."""
 
     def check_with(self, **patch_kwargs):
-        with patch("api.services.health.requests.get", **patch_kwargs):
-            with self.assertLogs("api.health", level="WARNING"):
-                return check_ai()
+        with patch("api.services.health.requests.get", **patch_kwargs), self.assertLogs("api.health", level="WARNING"):
+            return check_ai()
 
     def test_a_timeout_is_reported_as_timeout(self):
         for error in (requests.ConnectTimeout("lenta"), requests.ReadTimeout("lenta")):
@@ -182,6 +186,9 @@ class AIHealthTimeoutTests(TestCase):
         with patch.dict(os.environ, {"AI_HEALTH_TIMEOUT": "4"}):
             self.assertEqual(_env_positive_float("AI_HEALTH_TIMEOUT", 2.0), 4.0)
         for value in ("0", "-1", "rápido", "nan"):
-            with self.subTest(value=value), patch.dict(os.environ, {"AI_HEALTH_TIMEOUT": value}):
-                with self.assertRaisesMessage(ImproperlyConfigured, "AI_HEALTH_TIMEOUT"):
-                    _env_positive_float("AI_HEALTH_TIMEOUT", 2.0)
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"AI_HEALTH_TIMEOUT": value}),
+                self.assertRaisesMessage(ImproperlyConfigured, "AI_HEALTH_TIMEOUT"),
+            ):
+                _env_positive_float("AI_HEALTH_TIMEOUT", 2.0)

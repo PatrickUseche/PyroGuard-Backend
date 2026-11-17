@@ -107,26 +107,32 @@ class IngestionLatencyTests(APITestCase):
         self.assertEqual(response.data["reading"]["ai"]["status"], "OK")
 
     def test_a_down_ai_delays_the_response_until_the_timeout(self):
-        with patch("api.services.ai_client.requests.post", side_effect=self.failing_ai):
-            with self.assertLogs("api.ai", level="WARNING"):
-                response, latency = self.ingest()
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=self.failing_ai),
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            response, latency = self.ingest()
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertGreaterEqual(latency, AI_DELAY)
         self.assertEqual(response.data["reading"]["ai"]["status"], "UNAVAILABLE")
 
     def test_the_reading_is_safe_even_if_the_ai_is_down(self):
-        with patch("api.services.ai_client.requests.post", side_effect=self.failing_ai):
-            with self.assertLogs("api.ai", level="WARNING"):
-                self.ingest()
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=self.failing_ai),
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            self.ingest()
 
         self.assertEqual(SensorReading.objects.count(), 1)
         self.assertEqual(RiskAssessment.objects.get().ai_status, "UNAVAILABLE")
 
     def test_latency_grows_with_every_reading_while_the_ai_is_down(self):
-        with patch("api.services.ai_client.requests.post", side_effect=self.failing_ai):
-            with self.assertLogs("api.ai", level="WARNING"):
-                latencies = [self.ingest()[1] for _ in range(3)]
+        with (
+            patch("api.services.ai_client.requests.post", side_effect=self.failing_ai),
+            self.assertLogs("api.ai", level="WARNING"),
+        ):
+            latencies = [self.ingest()[1] for _ in range(3)]
 
         self.assertTrue(all(latency >= AI_DELAY for latency in latencies))
 
