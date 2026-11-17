@@ -124,10 +124,10 @@ class AggregateReadingsTests(TestCase):
         self.assertIn("Se resumieron 0 hora(s)", output)
 
     def test_a_node_and_hour_cannot_be_stored_twice(self):
-        values = dict(
-            node=self.node, hour=at(10), reading_count=1, temperature_min=1, temperature_avg=1,
-            temperature_max=1, humidity_avg=1, smoke_max=1,
-        )
+        values = {
+            "node": self.node, "hour": at(10), "reading_count": 1, "temperature_min": 1, "temperature_avg": 1,
+            "temperature_max": 1, "humidity_avg": 1, "smoke_max": 1,
+        }
         ReadingHourly.objects.create(**values)
 
         with self.assertRaises(IntegrityError), transaction.atomic():

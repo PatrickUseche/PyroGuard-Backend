@@ -18,7 +18,12 @@ from .notifications.telegram_channel import TelegramNotifier
 
 
 def notification(**overrides):
-    values = dict(subject="Incendio en NODE-001", message="Humo y llama detectados.", node_id="NODE-001", priority=1)
+    values = {
+        "subject": "Incendio en NODE-001",
+        "message": "Humo y llama detectados.",
+        "node_id": "NODE-001",
+        "priority": 1,
+    }
     values.update(overrides)
     return Notification(**values)
 

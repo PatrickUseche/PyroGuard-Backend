@@ -14,10 +14,10 @@ from api.services.risk_rules import SMOKE_FIRE, SMOKE_WARNING, TEMP_FIRE, TEMP_W
 
 
 def make_args(**overrides):
-    values = dict(
-        url="http://api.test/api/readings/", node="NODE-001", nodes=1, prefix="SIM-",
-        interval=5.0, scenario="normal", api_key="clave", seed=None,
-    )
+    values = {
+        "url": "http://api.test/api/readings/", "node": "NODE-001", "nodes": 1, "prefix": "SIM-",
+        "interval": 5.0, "scenario": "normal", "api_key": "clave", "seed": None,
+    }
     values.update(overrides)
     return SimpleNamespace(**values)
 

@@ -242,7 +242,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] chore(lint): activar en ruff las reglas UP, SIM, C4, RET y RUF100 [13.16]
 - [x] style: `datetime.UTC` (ruff UP017) [13.17]
 - [x] style: quitar `noqa` que ya no hacen falta (ruff RUF100) [13.18]
-- [ ] style: literales en lugar de `dict()` y comprensión innecesaria (ruff C408, C420) [13.19]
+- [x] style: literales en lugar de `dict()` y comprensión innecesaria (ruff C408, C420) [13.19]
 - [ ] style: retorno explícito al final de la función (ruff RET503) [13.20]
 - [ ] style: unir los `with` anidados en `api/tests.py` (ruff SIM117) [13.21]
 - [ ] style: unir los `with` anidados en las pruebas de salud, IA y cola de evaluación (ruff SIM117) [13.22]
