@@ -286,7 +286,7 @@ Ramas que seguían sin cubrir tras [13.46] y enlaces de la documentación de ent
 - [x] test(health): la vista `/api/health/` entrega `reason` al cliente cuando la IA no responde [13.51]
 - [x] test(auth): registrarse con Google con una cuenta desactivada responde 403 [13.52]
 - [x] test(alerts): filtros de `/alerts/` por `status` y `level` [13.53]
-- [ ] test(auth): tras un `IntegrityError`, un usuario del mismo correo ya vinculado a Google se devuelve [13.54]
+- [x] test(auth): tras un `IntegrityError`, un usuario del mismo correo ya vinculado a Google se devuelve [13.54]
 - [ ] test(queue): `drain` cuenta como omitidas las lecturas que otro proceso ya evaluó [13.55]
 - [ ] test(queue): un fallo al avisar a los vecinos no deshace la evaluación diferida [13.56]
 - [ ] test(config): `DATABASE_URL` selecciona PostgreSQL con conexiones persistentes [13.57]

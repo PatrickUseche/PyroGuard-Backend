@@ -42,6 +42,12 @@ class ConcurrentGoogleLinkingTests(TestCase):
             self.assertIsNone(google_auth.get_existing_user("nadie@gmail.com", "sub-nadie"))
 
 
+    def test_a_user_already_linked_by_email_is_returned_after_the_conflict(self):
+        GoogleAccount.objects.create(user=self.user, google_sub="sub-ada-otro")
+        conflict = IntegrityError("carrera")
+        with patch.object(google_auth, "_find_account", side_effect=[conflict, None]):
+            self.assertEqual(google_auth.get_existing_user("ADA@gmail.com", "sub-ada"), self.user)
+
 GOOD_CLAIMS = {"sub": "sub-edge", "email": "edge@gmail.com", "email_verified": True, "given_name": "Edge"}
 
 
