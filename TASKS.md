@@ -255,7 +255,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(readings): fecha imposible en `from`/`to` responde 400 [13.29]
 - [x] test(readings): `range` y `order` inválidos responden 400 [13.30]
 - [x] test(alerts): filtros de `/alerts/` por `node_id`, `from` y `to` [13.31]
-- [ ] test(alerts): `from` posterior a `to` en `/alerts/` responde 400 [13.32]
+- [x] test(alerts): `from` posterior a `to` en `/alerts/` responde 400 [13.32]
 - [ ] test(ai): un código HTTP inesperado de la IA se trata como respuesta inválida [13.33]
 - [ ] test(ingestion): si falla la actualización de `last_communication` la lectura se conserva [13.34]
 - [ ] test(ingestion): un `IntegrityError` que no es un duplicado se propaga [13.35]

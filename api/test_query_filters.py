@@ -76,3 +76,13 @@ class AlertFilterTests(APITestCase):
     def test_node_and_dates_combine(self):
         since = (self.now - timedelta(days=2)).isoformat()
         self.assertEqual(self.ids(node_id="NORTE-1", **{"from": since}), {self.recent_north.pk})
+
+    def test_from_after_to_is_a_bad_request(self):
+        params = {"from": self.now.isoformat(), "to": (self.now - timedelta(days=1)).isoformat()}
+        response = self.client.get(reverse("alert_list"), params)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("posterior", str(response.data))
+
+    def test_an_invalid_date_is_a_bad_request(self):
+        response = self.client.get(reverse("alert_list"), {"to": "ayer"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
