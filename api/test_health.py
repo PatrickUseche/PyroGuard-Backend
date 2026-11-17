@@ -192,3 +192,17 @@ class AIHealthTimeoutTests(TestCase):
                 self.assertRaisesMessage(ImproperlyConfigured, "AI_HEALTH_TIMEOUT"),
             ):
                 _env_positive_float("AI_HEALTH_TIMEOUT", 2.0)
+
+
+@override_settings(AI_SERVICE_URL="http://ia.test")
+class HealthViewReasonTests(TestCase):
+    def test_the_endpoint_returns_the_reason_to_the_client(self):
+        with (
+            patch("api.services.health.requests.get", side_effect=requests.ReadTimeout("lenta")),
+            self.assertLogs("api.health", level="WARNING"),
+        ):
+            response = self.client.get(reverse("health"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["status"], "degraded")
+        self.assertEqual(response.json()["ai"], {"status": "unavailable", "reason": "timeout"})
