@@ -170,6 +170,10 @@ class ErrorSerializer(serializers.Serializer):
 class HealthComponentSerializer(serializers.Serializer):
     status = serializers.CharField()
     latency_ms = serializers.FloatField(required=False)
+    reason = serializers.CharField(
+        required=False,
+        help_text="Solo con la IA `unavailable`: `timeout`, `connection_error`, `request_error` o `http_<código>`.",
+    )
 
 
 class HealthSerializer(serializers.Serializer):
@@ -212,7 +216,11 @@ EXAMPLE_NODE_STATUS = OpenApiExample(
 )
 EXAMPLE_HEALTH_DEGRADED = OpenApiExample(
     "IA caída",
-    value={"status": "degraded", "database": {"status": "ok", "latency_ms": 1.4}, "ai": {"status": "unavailable"}},
+    value={
+        "status": "degraded",
+        "database": {"status": "ok", "latency_ms": 1.4},
+        "ai": {"status": "unavailable", "reason": "timeout"},
+    },
     response_only=True,
 )
 EXAMPLE_SERIES = OpenApiExample(

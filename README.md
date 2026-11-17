@@ -818,6 +818,9 @@ Puntos a tener en cuenta:
 - **Secretos:** `AI_API_KEY` se define en el panel de Render de cada servicio, nunca en el repositorio.
 - **Comprobación:** `GET https://<backend>.onrender.com/api/health/` debe mostrar `"ai": {"status": "ok"}`;
   `unavailable` indica URL equivocada, servicio dormido o caído, y `disabled` que `AI_SERVICE_URL` está vacía.
+  Con `unavailable`, el campo `reason` dice el motivo: `timeout` (la IA tardó más que el límite, típico del arranque
+  en frío), `connection_error` (dominio o URL equivocados, o servicio apagado), `http_<código>` (la IA respondió con
+  error; `http_404` suele ser una URL con una ruta de más) o `request_error`.
   Una lectura de prueba debe devolver `ai.status = OK` y `ai.model_version`.
 
 No ejecutes migraciones de producción desde una terminal local sin confirmar
