@@ -42,14 +42,14 @@ class AIHealthTests(TestCase):
     def test_an_ai_that_does_not_connect_is_unavailable(self):
         with patch("api.services.health.requests.get", side_effect=requests.ConnectTimeout("caída")):
             with self.assertLogs("api.health", level="WARNING"):
-                self.assertEqual(check_ai(), {"status": "unavailable"})
+                self.assertEqual(check_ai()["status"], "unavailable")
 
     def test_an_ai_that_answers_with_an_error_is_unavailable(self):
         for code in (500, 503, 404):
             with self.subTest(code=code):
                 with patch("api.services.health.requests.get", return_value=MagicMock(status_code=code)):
                     with self.assertLogs("api.health", level="WARNING"):
-                        self.assertEqual(check_ai(), {"status": "unavailable"})
+                        self.assertEqual(check_ai()["status"], "unavailable")
 
     @override_settings(AI_SERVICE_URL="")
     def test_without_a_configured_ai_it_is_disabled_and_not_called(self):
@@ -90,7 +90,7 @@ class HealthEndpointTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "degraded")
         self.assertEqual(response.data["database"]["status"], "ok")
-        self.assertEqual(response.data["ai"], {"status": "unavailable"})
+        self.assertEqual(response.data["ai"]["status"], "unavailable")
 
     @override_settings(AI_SERVICE_URL="http://ia.test")
     def test_a_down_database_returns_503_and_skips_the_ai(self):

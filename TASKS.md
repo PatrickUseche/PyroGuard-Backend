@@ -227,7 +227,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] docs(tasks): restaurar los nombres originales en las tasks de renombrado [2.25]–[2.29] [13.1]
 - [x] docs(deploy): URL real de la IA en el README y en `render.yaml` [13.2]
 - [x] docs(deploy): dominio real del frontend en los ejemplos de `EXTRA_CORS_ORIGINS` [13.3]
-- [ ] feat(health): `/health/` indica por qué la IA no está disponible (`reason`) [13.4]
+- [x] feat(health): `/health/` indica por qué la IA no está disponible (`reason`) [13.4]
 - [ ] test(health): pruebas de `reason` (timeout, sin conexión y código HTTP) [13.5]
 - [ ] docs(api): `reason` en el ejemplo OpenAPI de `/health/` y en el README [13.6]
 - [ ] feat(health): timeout del `/health` de la IA configurable con `AI_HEALTH_TIMEOUT` [13.7]

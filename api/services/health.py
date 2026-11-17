@@ -24,6 +24,15 @@ def check_database():
     return {"status": "ok", "latency_ms": round((time.perf_counter() - started) * 1000, 1)}
 
 
+def _unavailable_reason(error):
+    """Motivo corto y sin datos sensibles de por qué no se pudo consultar la IA (ayuda a diagnosticar en Render)."""
+    if isinstance(error, requests.Timeout):
+        return "timeout"
+    if isinstance(error, requests.ConnectionError):
+        return "connection_error"
+    return "request_error"
+
+
 def check_ai():
     """Consulta ``/health`` de PyroGuard-IA con un timeout corto (no frena al sensor ni al frontend)."""
     if not settings.AI_SERVICE_URL:
@@ -33,10 +42,10 @@ def check_ai():
         response = requests.get(f"{settings.AI_SERVICE_URL}/health", timeout=AI_HEALTH_TIMEOUT_SECONDS)
     except requests.RequestException as error:
         logger.warning("La IA no responde a /health (%s).", type(error).__name__)
-        return {"status": "unavailable"}
+        return {"status": "unavailable", "reason": _unavailable_reason(error)}
     if response.status_code != 200:
         logger.warning("La IA respondió HTTP %s a /health.", response.status_code)
-        return {"status": "unavailable"}
+        return {"status": "unavailable", "reason": f"http_{response.status_code}"}
     return {"status": "ok", "latency_ms": round((time.perf_counter() - started) * 1000, 1)}
 
 
