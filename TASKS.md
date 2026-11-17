@@ -234,7 +234,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(health): pruebas de `AI_HEALTH_TIMEOUT` (por defecto, valor propio e inválido) [13.8]
 - [x] docs(deploy): `AI_HEALTH_TIMEOUT` en el README y en `.env.example` [13.9]
 - [x] feat(ai): `predict_url` y `health_url` en el cliente de la IA para no repetir la construcción de URLs [13.10]
-- [ ] feat(commands): `check_ai` comprueba `/health` y `/predict` de la IA con la configuración actual [13.11]
+- [x] feat(commands): `check_ai` comprueba `/health` y `/predict` de la IA con la configuración actual [13.11]
 - [ ] test(commands): pruebas de `check_ai` (IA sana, clave incorrecta, IA caída y deshabilitada) [13.12]
 - [ ] docs(deploy): diagnosticar `ai: unavailable` con `check_ai` [13.13]
 - [ ] chore(deps): `requirements-dev.txt` incluye `requirements.txt` [13.14]
