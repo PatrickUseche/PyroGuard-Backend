@@ -1,6 +1,5 @@
 """Pruebas de la detección de lecturas duplicadas en la ingesta."""
-from datetime import datetime, timedelta
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -30,7 +29,7 @@ def tearDownModule():
 
 
 INGEST_KEY = "test-ingest-key"
-MOMENT = datetime(2026, 10, 30, 12, 0, 0, 123456, tzinfo=dt_timezone.utc)
+MOMENT = datetime(2026, 10, 30, 12, 0, 0, 123456, tzinfo=UTC)
 
 
 @override_settings(INGEST_API_KEY=INGEST_KEY)

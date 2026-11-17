@@ -1,7 +1,6 @@
 """Pruebas del candado que protege el estado en memoria compartido entre peticiones."""
 import threading
-from datetime import datetime
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime
 
 from django.test import SimpleTestCase, TransactionTestCase, override_settings
 
@@ -183,7 +182,7 @@ class ConcurrentUseTests(TransactionTestCase):
 
     def test_the_duplicate_filter_counts_every_distinct_reading_once(self):
         node = Node.objects.create(node_id="NODE-1")
-        moment = datetime(2026, 10, 30, 12, 0, tzinfo=dt_timezone.utc)
+        moment = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 
         def work(index):
             for number in range(50):

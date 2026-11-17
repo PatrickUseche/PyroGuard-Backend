@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 
@@ -102,7 +102,7 @@ def generate_simulated_data(node_id, scenario="random", rng=random):
         "smoke": smoke,
         "gas": gas,
         "flame": flame,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }, selected_scenario
 
 

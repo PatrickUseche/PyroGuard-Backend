@@ -1,6 +1,5 @@
 """Pruebas de los agregados por hora (ReadingHourly y aggregate_readings)."""
-from datetime import datetime, timedelta
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 
 from django.core.management import call_command
@@ -11,7 +10,7 @@ from .models import Node, ReadingHourly, SensorReading
 
 
 def at(hour, minute=0):
-    return datetime(2026, 10, 30, hour, minute, tzinfo=dt_timezone.utc)
+    return datetime(2026, 10, 30, hour, minute, tzinfo=UTC)
 
 
 class AggregateReadingsTests(TestCase):

@@ -1,6 +1,5 @@
 """Pruebas del orden de urgencia de alertas y del top-K de nodos por riesgo."""
-from datetime import datetime, timedelta
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -31,7 +30,7 @@ def tearDownModule():
 
 
 def fake_alert(pk, level, minutes_ago):
-    created = datetime(2026, 10, 30, 12, 0, tzinfo=dt_timezone.utc) - timedelta(minutes=minutes_ago)
+    created = datetime(2026, 10, 30, 12, 0, tzinfo=UTC) - timedelta(minutes=minutes_ago)
     return SimpleNamespace(pk=pk, level=level, created_at=created)
 
 

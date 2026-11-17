@@ -1,7 +1,6 @@
 """Pruebas de la serie de lecturas: búsqueda binaria, promedios, mezcla y endpoint."""
 import random
-from datetime import datetime, timedelta
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
@@ -35,7 +34,7 @@ def tearDownModule():
     _unlimited_rates.stop()
 
 
-BASE = datetime(2026, 10, 30, 12, 0, tzinfo=dt_timezone.utc)
+BASE = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 
 
 def at(minutes):

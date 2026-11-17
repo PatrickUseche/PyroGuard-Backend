@@ -14,7 +14,7 @@ podría no detectarse; en el peor caso se guarda repetida, nunca se pierde un da
 Cuando el filtro recibe más lecturas de las que fue dimensionado, se reconstruye.
 """
 import threading
-from datetime import timezone
+from datetime import UTC
 
 from django.conf import settings
 
@@ -27,7 +27,7 @@ FALSE_POSITIVE_RATE = 0.01
 
 def reading_key(node_id, timestamp):
     """Clave estable de una lectura: nodo y momento en UTC con microsegundos."""
-    return (node_id, timestamp.astimezone(timezone.utc).isoformat())
+    return (node_id, timestamp.astimezone(UTC).isoformat())
 
 
 class DuplicateReadingDetector:

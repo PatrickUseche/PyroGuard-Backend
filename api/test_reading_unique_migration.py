@@ -1,12 +1,11 @@
 """Prueba de la migración 0011: limpia duplicados antes de crear la restricción única."""
-from datetime import datetime
-from datetime import timezone as dt_timezone
+from datetime import UTC, datetime
 
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
-MOMENT = datetime(2026, 10, 30, 12, 0, tzinfo=dt_timezone.utc)
+MOMENT = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 
 
 class RemoveDuplicateReadingsMigrationTests(TransactionTestCase):
