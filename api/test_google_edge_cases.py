@@ -63,3 +63,11 @@ class GoogleCredentialShapeTests(APITestCase):
                 response = self.post_with_claims({**GOOD_CLAIMS, "sub": sub})
                 self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(GoogleAccount.objects.count(), 0)
+
+    def test_a_body_that_is_not_an_object_is_rejected_on_login_and_register(self):
+        for url_name in ("google_login", "google_register"):
+            with self.subTest(url=url_name), patch("api.services.google_auth.verify_credential") as verifier:
+                response = self.client.post(reverse(url_name), ["credential", "mock"], format="json")
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("objeto", str(response.data))
+                verifier.assert_not_called()
