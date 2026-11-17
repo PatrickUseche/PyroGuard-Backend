@@ -8,9 +8,6 @@ from django.db import connection
 
 logger = logging.getLogger("api.health")
 
-AI_HEALTH_TIMEOUT_SECONDS = 2.0
-
-
 def check_database():
     """Ejecuta una consulta mínima y mide cuánto tarda."""
     started = time.perf_counter()
@@ -39,7 +36,7 @@ def check_ai():
         return {"status": "disabled"}
     started = time.perf_counter()
     try:
-        response = requests.get(f"{settings.AI_SERVICE_URL}/health", timeout=AI_HEALTH_TIMEOUT_SECONDS)
+        response = requests.get(f"{settings.AI_SERVICE_URL}/health", timeout=settings.AI_HEALTH_TIMEOUT)
     except requests.RequestException as error:
         logger.warning("La IA no responde a /health (%s).", type(error).__name__)
         return {"status": "unavailable", "reason": _unavailable_reason(error)}
