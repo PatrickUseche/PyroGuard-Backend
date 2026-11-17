@@ -5,8 +5,9 @@ extend-exclude = ["venv", "staticfiles", "api/migrations"]
 
 [lint]
 # E/W: estilo de pycodestyle, F: errores de pyflakes (imports sin usar, nombres sin definir),
-# I: orden de imports, B: errores probables de flake8-bugbear.
-select = ["E", "W", "F", "I", "B"]
+# I: orden de imports, B: errores probables de flake8-bugbear, UP: sintaxis moderna de Python,
+# SIM: simplificaciones, C4: comprensiones, RET: retornos coherentes, RUF100: `noqa` que sobran.
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RET", "RUF100"]
 
 [lint.isort]
 known-first-party = ["api", "config"]

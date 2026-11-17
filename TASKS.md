@@ -239,7 +239,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] docs(deploy): diagnosticar `ai: unavailable` con `check_ai` [13.13]
 - [x] chore(deps): `requirements-dev.txt` incluye `requirements.txt` [13.14]
 - [x] docs: instalación de desarrollo con un solo `pip install -r requirements-dev.txt` [13.15]
-- [ ] chore(lint): activar en ruff las reglas UP, SIM, C4, RET y RUF100 [13.16]
+- [x] chore(lint): activar en ruff las reglas UP, SIM, C4, RET y RUF100 [13.16]
 - [ ] style: `datetime.UTC` (ruff UP017) [13.17]
 - [ ] style: quitar `noqa` que ya no hacen falta (ruff RUF100) [13.18]
 - [ ] style: literales en lugar de `dict()` y comprensión innecesaria (ruff C408, C420) [13.19]
