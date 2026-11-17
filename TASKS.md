@@ -247,7 +247,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] style: unir los `with` anidados en `api/tests.py` (ruff SIM117) [13.21]
 - [x] style: unir los `with` anidados en las pruebas de salud, IA y cola de evaluación (ruff SIM117) [13.22]
 - [x] style: unir los `with` anidados en el resto de las pruebas (ruff SIM117) [13.23]
-- [ ] test(auth): vincular Google cuando otra petición creó la cuenta a la vez (`IntegrityError`) [13.24]
+- [x] test(auth): vincular Google cuando otra petición creó la cuenta a la vez (`IntegrityError`) [13.24]
 - [ ] test(auth): sin cuenta tras el `IntegrityError` no se devuelve ningún usuario [13.25]
 - [ ] test(auth): credencial de Google que no es un objeto o sin `sub` válido [13.26]
 - [ ] test(auth): cuerpo que no es un objeto en el acceso y en el registro con Google [13.27]
