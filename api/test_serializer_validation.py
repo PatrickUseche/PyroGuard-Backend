@@ -1,8 +1,9 @@
 """Validaciones de los serializers que la cobertura marcaba sin probar."""
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from rest_framework.exceptions import ValidationError
 
-from .serializers import JsonBooleanField
+from .models import Node
+from .serializers import JsonBooleanField, NodeSerializer
 
 
 class JsonBooleanFieldTests(SimpleTestCase):
@@ -20,3 +21,21 @@ class JsonBooleanFieldTests(SimpleTestCase):
             with self.subTest(value=value), self.assertRaises(ValidationError):
                 self.field.to_internal_value(value)
 
+
+class NodeIdValidationTests(TestCase):
+    def setUp(self):
+        self.node = Node.objects.create(node_id="NODE-S1", name="Norte")
+
+    def test_updating_a_node_keeping_its_id_does_not_clash_with_itself(self):
+        serializer = NodeSerializer(self.node, data={"node_id": "NODE-S1", "name": "Norte alto"}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_changing_the_id_of_an_existing_node_is_rejected(self):
+        serializer = NodeSerializer(self.node, data={"node_id": "NODE-S2"}, partial=True)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("no se puede modificar", str(serializer.errors["node_id"]))
+
+    def test_creating_a_node_with_an_existing_id_is_rejected(self):
+        serializer = NodeSerializer(data={"node_id": "NODE-S1"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("node_id", serializer.errors)
