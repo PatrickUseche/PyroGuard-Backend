@@ -258,7 +258,7 @@ que la cobertura marcaba sin probar y cierra la documentación de la entrega.
 - [x] test(alerts): `from` posterior a `to` en `/alerts/` responde 400 [13.32]
 - [x] test(ai): un código HTTP inesperado de la IA se trata como respuesta inválida [13.33]
 - [x] test(ingestion): si falla la actualización de `last_communication` la lectura se conserva [13.34]
-- [ ] test(ingestion): un `IntegrityError` que no es un duplicado se propaga [13.35]
+- [x] test(ingestion): un `IntegrityError` que no es un duplicado se propaga [13.35]
 - [ ] test(graph): borrar un enlace cuyos nodos ya no existen reconstruye el grafo [13.36]
 - [ ] test(config): `_env_positive_int` y `_env_non_negative_float` con valores inválidos [13.37]
 - [ ] test(config): `SECRET_KEY` obligatoria con `DEBUG=False` [13.38]
