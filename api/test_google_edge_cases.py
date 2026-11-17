@@ -3,7 +3,10 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
 from .models import GoogleAccount
 from .services import google_auth
@@ -37,3 +40,26 @@ class ConcurrentGoogleLinkingTests(TestCase):
         conflict = IntegrityError("carrera")
         with patch.object(google_auth, "_find_account", side_effect=[conflict, None]):
             self.assertIsNone(google_auth.get_existing_user("nadie@gmail.com", "sub-nadie"))
+
+
+GOOD_CLAIMS = {"sub": "sub-edge", "email": "edge@gmail.com", "email_verified": True, "given_name": "Edge"}
+
+
+@override_settings(GOOGLE_CLIENT_ID="test-google-client")
+class GoogleCredentialShapeTests(APITestCase):
+    def post_with_claims(self, claims, url_name="google_login", data=None):
+        with patch("api.services.google_auth.verify_credential", return_value=claims):
+            return self.client.post(reverse(url_name), data or {"credential": "mock"}, format="json")
+
+    def test_claims_that_are_not_an_object_are_rejected(self):
+        for claims in (["sub", "email"], "texto", None):
+            with self.subTest(claims=claims):
+                response = self.post_with_claims(claims)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_missing_empty_or_too_long_sub_is_rejected(self):
+        for sub in (None, "", 123, "x" * 256):
+            with self.subTest(sub=sub):
+                response = self.post_with_claims({**GOOD_CLAIMS, "sub": sub})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(GoogleAccount.objects.count(), 0)
